@@ -1,4 +1,4 @@
-# ระบบสแกนสลิปโอนเงิน (เวอร์ชั่น 0.3.6)
+# ระบบสแกนสลิปโอนเงิน (เวอร์ชั่น 0.3.7)
 import streamlit as st
 import pandas as pd
 import pytesseract
@@ -34,17 +34,18 @@ def send_telegram_photo(image, caption=""):
 # ===== Session State =====
 if "notified_slips" not in st.session_state:
     st.session_state.notified_slips = set()
+if "all_detected_slips" not in st.session_state:
+    st.session_state.all_detected_slips = set()
 
 # ===== UI =====
 st.set_page_config(page_title="ระบบสแกนสลิปโอนเงิน", layout="wide")
-st.title("ระบบสแกนสลิปโอนเงิน (เวอร์ชั่น 0.3.6) จากสลิป BCEL One")
+st.title("ระบบสแกนสลิปโอนเงิน (เวอร์ชั่น 0.3.7) จากสลิป BCEL One")
 
 uploaded_files = st.file_uploader("อัปโหลดสลิปภาพ (รองรับหลายไฟล์)", type=["jpg", "jpeg", "png"], accept_multiple_files=True)
 show_ocr = st.checkbox("แสดงข้อความ OCR ทั้งหมด")
 
 columns = ["Date", "Time", "Amount (LAK)", "Reference", "Sender", "Receiver", "QR Data"]
 df_history = pd.DataFrame(columns=columns)
-processed_hashes = set()
 
 def extract_amount_region(image):
     img_np = np.array(image)
@@ -60,10 +61,10 @@ def extract_amount_region(image):
 def read_qr_code(img_np):
     return ""  # ยังไม่รองรับ pyzbar บน Streamlit Cloud
 
+# ===== PROCESS EACH FILE =====
 for file in uploaded_files:
     image = Image.open(file)
     text = pytesseract.image_to_string(image, lang='eng+lao')
-
     red_area = extract_amount_region(image)
     red_text = pytesseract.image_to_string(red_area, config='--psm 6 digits')
 
@@ -73,20 +74,18 @@ for file in uploaded_files:
     sender = re.search(r"[A-Z ]+MS|MR", text)
     receiver = re.findall(r"[A-Z ]+MR|MS", text)
     qr_data = read_qr_code(np.array(image))
-
     amount_match = re.search(r"\d{1,3}(?:,\d{3})*", red_text)
     amount = amount_match.group().replace(",", "") if amount_match else ""
 
     slip_key = f"{date.group() if date else ''}-{time.group() if time else ''}-{amount}-{reference.group() if reference else ''}"
 
-    if slip_key in processed_hashes:
+    # === เช็คสลิปซ้ำทุกครั้ง
+    if slip_key in st.session_state.all_detected_slips:
         st.warning(f"สลิปซ้ำ: {reference.group() if reference else 'N/A'}")
-        if slip_key not in st.session_state.notified_slips:
-            send_telegram_message(f"🚨 พบสลิปซ้ำ: เลขอ้างอิง {reference.group() if reference else 'N/A'}")
-            st.session_state.notified_slips.add(slip_key)
+        send_telegram_message(f"🚨 พบสลิปซ้ำอีกครั้ง: เลขอ้างอิง {reference.group() if reference else 'N/A'}")
         continue
 
-    processed_hashes.add(slip_key)
+    st.session_state.all_detected_slips.add(slip_key)
 
     row = {
         "Date": date.group() if date else "",
@@ -99,6 +98,7 @@ for file in uploaded_files:
     }
     df_history.loc[len(df_history)] = row
 
+    # ส่งเข้า Telegram ครั้งแรก
     if slip_key not in st.session_state.notified_slips:
         send_telegram_photo(image, caption=f"🧾 สลิปใหม่: {reference.group() if reference else 'ไม่มีเลขอ้างอิง'}")
         st.session_state.notified_slips.add(slip_key)
@@ -107,7 +107,7 @@ for file in uploaded_files:
         st.subheader(f"OCR: {reference.group() if reference else 'N/A'}")
         st.code(text)
 
-# ===== สรุปยอดและ Export =====
+# ===== DISPLAY SUMMARY =====
 if not df_history.empty:
     try:
         total = df_history["Amount (LAK)"].astype(str).str.replace(",", "").astype(float).sum()
