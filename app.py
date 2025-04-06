@@ -10,8 +10,8 @@ import cv2
 import requests
 
 # ===== CONFIG =====
-TELEGRAM_BOT_TOKEN = "7194336087:AAGSbq63qi4vpXJqZ2rwS940PVSnFWNHNtc"
-TELEGRAM_CHAT_ID = "-4745577562"
+TELEGRAM_BOT_TOKEN = "ใส่โทเคนบอทของคุณ"
+TELEGRAM_CHAT_ID = "ใส่ chat_id กลุ่มหรือบุคคล"
 
 def send_telegram_message(message):
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
@@ -73,26 +73,11 @@ for file in uploaded_files:
     amount_match = re.search(r"\d{1,3}(?:,\d{3})*", red_text)
     amount = amount_match.group().replace(",", "") if amount_match else ""
 
-    sent_slips = set()  # เก็บ hash ของ slip ที่เคยส่งแล้ว
-
-...
-
-slip_key = f"{date.group() if date else ''}-{time.group() if time else ''}-{amount}-{reference.group() if reference else ''}"
-slip_hash = hashlib.md5(slip_key.encode()).hexdigest()
-
-if slip_hash in uploaded_hashes:
-    st.warning(f"สลิปซ้ำ: {reference.group() if reference else 'N/A'}")
-    
-   for file in uploaded_files:
-    ...
+    slip_key = f"{date.group() if date else ''}-{time.group() if time else ''}-{amount}-{reference.group() if reference else ''}"
     if slip_key in uploaded_hashes:
         st.warning(f"สลิปซ้ำ: {reference.group() if reference else 'N/A'}")
-        if slip_key not in notified_hashes:
-            send_telegram_message(f"🚨 พบสลิปซ้ำ: เลขอ้างอิง {reference.group() if reference else 'N/A'}")
-            notified_hashes.add(slip_key)
-        continue  # ✅ ตรงนี้ต้องอยู่ใน for-loop เท่านั้น
-
-
+        send_telegram_message(f"🚨 พบสลิปซ้ำ: เลขอ้างอิง {reference.group() if reference else 'N/A'}")
+        continue
 
     uploaded_hashes.add(slip_key)
 
