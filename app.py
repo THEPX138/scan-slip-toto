@@ -54,8 +54,8 @@ if uploaded_files:
         image = Image.open(file)
         text = pytesseract.image_to_string(image, config='--oem 3 --psm 6')
 
-        st.markdown("#### OCR Text (แสดงข้อความจากภาพ):")
-        st.code(text, language='text')
+        with st.expander("OCR Text (แสดงข้อความจากภาพ)", expanded=False):
+    st.code(text, language='text')
 
         data = extract_transaction_data(text)
         all_results.append(data)
