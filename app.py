@@ -4,13 +4,9 @@ import pytesseract
 from PIL import Image
 import re
 import io
+import os  # import os แค่ครั้งเดียวพอ
 
-# (เพิ่มบรรทัดนี้ถ้าใช้ Windows และติดตั้ง Tesseract ไว้แล้ว)
-import os
-
-if os.name == 'nt':
-    import os
-
+# กำหนด path ของ Tesseract OCR ให้ถูกต้องตามระบบปฏิบัติการ
 if os.name == 'nt':  # ถ้าเป็น Windows
     pytesseract.pytesseract.tesseract_cmd = r'C:\\Program Files\\Tesseract-OCR\\tesseract.exe'
 else:  # ถ้าเป็น Linux/Cloud
