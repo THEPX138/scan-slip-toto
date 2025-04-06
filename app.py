@@ -9,7 +9,7 @@ import cv2
 import numpy as np 
 from pyzbar.pyzbar import decode
 
-ตั้งค่า path ของ Tesseract บน Windows
+# ตั้งค่า path ของ Tesseract บน Windows
 
 if os.name == 'nt': pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
 
