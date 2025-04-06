@@ -23,20 +23,30 @@ uploaded_files = st.file_uploader("อัปโหลดสลิปภาพ (�
 def extract_transaction_data(text):
     date_pattern = r'\d{2}/\d{2}/\d{2}'
     time_pattern = r'\d{2}:\d{2}:\d{2}'
-    amount_pattern = r'(\d{1,3}(?:,\d{3})*)\s*LAK'  # แก้ตรงนี้เพื่อให้จับจำนวนเงิน 69,000 ได้
+    amount_pattern = r'(?:\d{1,3}(?:,\d{3})*|\d+)\s*LAK'
     ref_pattern = r'\d{14}'
     receiver_pattern = r'[A-Z]+\s+[A-Z]+\s+MR'
 
     date = re.search(date_pattern, text)
     time = re.search(time_pattern, text)
-    amount = re.search(amount_pattern, text)
     reference = re.search(ref_pattern, text)
     receiver = re.search(receiver_pattern, text)
+
+    # ดึงจำนวนเงินทั้งหมด แล้วเลือกค่าที่มากที่สุด
+    all_amounts = re.findall(amount_pattern, text)
+    amount_cleaned = []
+    for amt in all_amounts:
+        try:
+            amt_num = float(amt.replace(',', '').replace('LAK', '').strip())
+            amount_cleaned.append(amt_num)
+        except:
+            continue
+    max_amount = max(amount_cleaned) if amount_cleaned else 0
 
     return {
         'Date': date.group() if date else '',
         'Time': time.group() if time else '',
-        'Amount (LAK)': amount.group(1).replace(',', '').strip() if amount else '',
+        'Amount (LAK)': max_amount,
         'Reference': reference.group() if reference else '',
         'Receiver': receiver.group().strip() if receiver else ''
     }
