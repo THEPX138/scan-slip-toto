@@ -1,5 +1,4 @@
 # ระบบสแกนสลิปโอนเงิน (เวอร์ชั่น 0.2.4) จากสลิป BCEL One
-
 import streamlit as st
 import pandas as pd
 import pytesseract
@@ -10,64 +9,94 @@ import io
 import numpy as np
 import cv2
 
-# ตั้งค่า tesseract สำหรับ Windows (ถ้าใช้ Linux หรือ Mac ให้คอมเมนต์บรรทัดนี้ออก)
+# ตั้งค่า tesseract สำหรับ Windows
 pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
 
-# ตั้งค่าหน้าแอป
 st.set_page_config(page_title="ระบบสแกนสลิปโอนเงิน", layout="wide")
 st.title("ระบบสแกนสลิปโอนเงิน (เวอร์ชั่น 0.2.4) จากสลิป BCEL One")
 
-# อัปโหลดสลิป
+# ตัวแปรเก็บประวัติสลิปและข้อมูล OCR
+if "history" not in st.session_state:
+    st.session_state.history = []
+
+# อัปโหลดภาพ
 uploaded_files = st.file_uploader("อัปโหลดสลิปภาพ (รองรับหลายไฟล์)", type=["jpg", "jpeg", "png"], accept_multiple_files=True)
 show_ocr = st.checkbox("แสดงข้อความ OCR ทั้งหมด")
 
-# เตรียม DataFrame สำหรับสรุปผล
-df_history = pd.DataFrame(columns=["Date", "Time", "Amount (LAK)", "Reference"])
+# สร้าง DataFrame เปล่า
+columns = ["Date", "Time", "Amount (LAK)", "Reference"]
+df_result = pd.DataFrame(columns=columns)
 
-def extract_info(image):
-    # อ่านข้อความจากภาพ
-    text = pytesseract.image_to_string(image, lang='eng+lao')
-    
-    if show_ocr:
-        st.code(text)
+# ฟังก์ชันดึงข้อความเฉพาะตัวหนังสือสีแดง (จำนวนเงิน)
+def extract_red_amount(img):
+    hsv = cv2.cvtColor(img, cv2.COLOR_RGB2HSV)
+    lower_red1 = np.array([0, 50, 50])
+    upper_red1 = np.array([10, 255, 255])
+    lower_red2 = np.array([160, 50, 50])
+    upper_red2 = np.array([180, 255, 255])
+    mask1 = cv2.inRange(hsv, lower_red1, upper_red1)
+    mask2 = cv2.inRange(hsv, lower_red2, upper_red2)
+    mask = cv2.bitwise_or(mask1, mask2)
+    result = cv2.bitwise_and(img, img, mask=mask)
+    gray = cv2.cvtColor(result, cv2.COLOR_RGB2GRAY)
+    text = pytesseract.image_to_string(gray)
+    amount_match = re.search(r"\d{1,3}(,\d{3})*(\.\d{2})?", text.replace(" ", ""))
+    return amount_match.group(0).replace(",", "") if amount_match else ""
 
-    # ดึงข้อมูลด้วย regex
+# ฟังก์ชันหลักในการดึงข้อมูล
+def extract_info(image_file):
+    image = Image.open(image_file)
+    img_array = np.array(image)
+    text = pytesseract.image_to_string(image, lang="eng+lao")
+
     date = re.search(r"\d{2}/\d{2}/\d{2,4}", text)
     time = re.search(r"\d{2}:\d{2}:\d{2}", text)
-    amount = re.search(r"69,000|[1-9]\d{0,2}(?:,\d{3})*", text)
-    reference = re.search(r"\d{14}", text)
+    reference = re.search(r"\d{12,}", text)
+    amount = extract_red_amount(img_array)
 
     return {
-        "Date": date.group() if date else "",
-        "Time": time.group() if time else "",
-        "Amount (LAK)": amount.group().replace(",", "") if amount else "",
-        "Reference": reference.group() if reference else ""
+        "Date": date.group(0) if date else "",
+        "Time": time.group(0) if time else "",
+        "Amount (LAK)": amount if amount else "",
+        "Reference": reference.group(0) if reference else "",
+        "OCR": text
     }
 
-# ประมวลผลแต่ละไฟล์
+# ตรวจสอบซ้ำและแสดงผล
+duplicates = []
 for file in uploaded_files:
-    image = Image.open(file)
-    info = extract_info(image)
+    info = extract_info(file)
+    key = (info["Date"], info["Time"], info["Amount (LAK)"], info["Reference"])
 
-    # ตรวจสอบสลิปซ้ำจาก Reference
-    if not df_history[
-        (df_history["Date"] == info["Date"]) &
-        (df_history["Time"] == info["Time"]) &
-        (df_history["Amount (LAK)"] == info["Amount (LAK)"]) &
-        (df_history["Reference"] == info["Reference"])
-    ].empty:
-        st.warning(f"สลิปซ้ำ: {info['Reference']}")
-        continue
-
-    df_history.loc[len(df_history)] = info
+    if key in [(
+        h["Date"], h["Time"], h["Amount (LAK)"], h["Reference"]
+    ) for h in st.session_state.history]:
+        info["Duplicate"] = True
+        duplicates.append(info)
+    else:
+        info["Duplicate"] = False
+        st.session_state.history.append(info)
+        df_result.loc[len(df_result)] = [info[c] for c in columns]
 
 # แสดงผลรวม
-if not df_history.empty:
-    total = df_history["Amount (LAK)"].astype(str).str.replace(",", "").astype(float).sum()
+if not df_result.empty:
+    total = df_result["Amount (LAK)"].replace("", "0").astype(float).sum()
     st.success(f"รวมยอดทั้งหมด: {int(total):,} LAK")
-    st.dataframe(df_history)
+
+    def highlight_duplicates(row):
+        return ["background-color: red" if row.get("Duplicate", False) else ""] * len(row)
+
+    styled_df = df_result.style.apply(highlight_duplicates, axis=1)
+    st.dataframe(styled_df, use_container_width=True)
 
     # ดาวน์โหลด Excel
     buffer = io.BytesIO()
-    df_history.to_excel(buffer, index=False, engine='openpyxl')
-    st.download_button("ดาวน์โหลดไฟล์ Excel", buffer.getvalue(), file_name="summary.xlsx")
+    df_result.to_excel(buffer, index=False)
+    st.download_button("ดาวน์โหลดไฟล์ Excel", data=buffer.getvalue(), file_name="result.xlsx")
+
+# แสดงข้อความ OCR
+if show_ocr:
+    st.subheader("ข้อความ OCR ทั้งหมด")
+    for record in st.session_state.history:
+        st.text(record["OCR"])
+        st.markdown("---")
