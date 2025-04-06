@@ -10,8 +10,8 @@ import cv2
 import requests
 
 # ===== CONFIG =====
-TELEGRAM_BOT_TOKEN = "ใส่โทเคนบอทของคุณ"
-TELEGRAM_CHAT_ID = "ใส่ chat_id กลุ่มหรือบุคคล"
+TELEGRAM_BOT_TOKEN = "7194336087:AAGSbq63qi4vpXJqZ2rwS940PVSnFWNHNtc"
+TELEGRAM_CHAT_ID = "-4745577562"
 
 def send_telegram_message(message):
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
