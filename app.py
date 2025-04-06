@@ -60,4 +60,5 @@ if uploaded_files:
     st.dataframe(df)
 
     buffer = io.BytesIO()
-    df.to_excel(buffer, index=False)
+    df.to_excel(buffer, index=False)  # <<< วงเล็บครบแล้ว!
+    buffer.seek(0)
