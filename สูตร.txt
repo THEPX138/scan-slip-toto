@@ -1,0 +1,3 @@
+รันไฟร์ให้ขึ้นออนไลน์
+cd Desktop\DDDD
+streamlit run app.py

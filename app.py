@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # ระบบสแกนสลิปโอนเงิน (เวอร์ชั่น 0.2.5) จากสลิป BCEL One
 import streamlit as st
 import pandas as pd
@@ -99,3 +100,6 @@ if not df_history.empty:
     buffer = io.BytesIO()
     df_history.to_excel(buffer, index=False)
     st.download_button("ดาวน์โหลดไฟล์ Excel", data=buffer.getvalue(), file_name="slip_summary.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+=======
+355555
+>>>>>>> b3b6642d9b10ee82024ab67e2bfcf737ef19debb
