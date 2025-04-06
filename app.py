@@ -6,47 +6,50 @@ import re
 import io
 import os
 
-# กำหนด path Tesseract ให้เหมาะกับแต่ละระบบปฏิบัติการ
+# ตั้งค่า path ของ Tesseract ตามระบบปฏิบัติการ
 if os.name == 'nt':  # Windows
-    pytesseract.pytesseract.tesseract_cmd = r'C:\\Program Files\\Tesseract-OCR\\tesseract.exe'
-else:  # Linux / Streamlit Cloud
+    pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
+else:  # Linux/Streamlit Cloud
     pytesseract.pytesseract.tesseract_cmd = 'tesseract'
 
-# ส่วน UI
+# ตั้งค่าหน้าเว็บ
 st.set_page_config(page_title="ระบบสแกนสลิป & สรุปยอด", layout="wide")
 st.title("ระบบสแกนสลิปโอนเงิน")
 
-uploaded_files = st.file_uploader(
-    "อัปโหลดสลิปภาพ (รองรับหลายไฟล์)",
-    type=["png", "jpg", "jpeg"],
-    accept_multiple_files=True
-)
+# อัปโหลดไฟล์ภาพ
+uploaded_files = st.file_uploader("อัปโหลดสลิปภาพ (รองรับหลายไฟล์)", type=["png", "jpg", "jpeg"], accept_multiple_files=True)
 
 # ฟังก์ชันแยกข้อมูลจากข้อความ OCR
 def extract_transaction_data(text):
     date_pattern = r'\d{2}/\d{2}/\d{2}'
     time_pattern = r'\d{2}:\d{2}:\d{2}'
-    amount_pattern = r'[\d,]+\.\d{2}|[\d,]+ LAK'
+    amount_pattern = r'\d{1,3}(?:,\d{3})*(?:\.\d{2})?\s*LAK'
     ref_pattern = r'\d{14}'
+    receiver_pattern = r'[A-Z\s]{5,}MR'  # จับชื่อภาษาอังกฤษที่ลงท้ายด้วย MR
 
     date = re.search(date_pattern, text)
     time = re.search(time_pattern, text)
     amount = re.search(amount_pattern, text)
     reference = re.search(ref_pattern, text)
+    receiver = re.search(receiver_pattern, text)
 
     return {
         'Date': date.group() if date else '',
         'Time': time.group() if time else '',
         'Amount (LAK)': amount.group().replace(',', '').replace('LAK', '').strip() if amount else '',
         'Reference': reference.group() if reference else '',
+        'Receiver': receiver.group().strip() if receiver else ''
     }
 
-# เมื่อลูกค้าอัปโหลดไฟล์
+# ประมวลผลภาพ
 if uploaded_files:
     results = []
     for file in uploaded_files:
         image = Image.open(file)
         text = pytesseract.image_to_string(image, config='--oem 3 --psm 6')
+
+        st.text_area("OCR Text (แสดงผลข้อความจากภาพ)", text, height=200)
+
         data = extract_transaction_data(text)
         results.append(data)
 
@@ -60,12 +63,12 @@ if uploaded_files:
     st.dataframe(df)
 
     buffer = io.BytesIO()
-df.to_excel(buffer, index=False)  # <<< ใส่วงเล็บครบแล้ว
-buffer.seek(0)
+    df.to_excel(buffer, index=False)
+    buffer.seek(0)
 
-st.download_button(
-    label="ดาวน์โหลดไฟล์ Excel",
-    data=buffer,
-    file_name="summary.xlsx",
-    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-)
+    st.download_button(
+        label="ดาวน์โหลดไฟล์ Excel",
+        data=buffer,
+        file_name="summary.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
