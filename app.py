@@ -1,4 +1,4 @@
-# ระบบสแกนสลิปโอนเงิน (เวอร์ชั่น 0.3.4) จากสลิป BCEL One
+# ระบบสแกนสลิปโอนเงิน (เวอร์ชั่น 0.3.6)
 import streamlit as st
 import pandas as pd
 import pytesseract
@@ -31,26 +31,20 @@ def send_telegram_photo(image, caption=""):
     except Exception as e:
         st.error(f"ส่งภาพ Telegram ล้มเหลว: {e}")
 
-# ===== Session State สำหรับกันส่งซ้ำ =====
-if "notified_hashes" not in st.session_state:
-    st.session_state.notified_hashes = set()
+# ===== Session State =====
+if "notified_slips" not in st.session_state:
+    st.session_state.notified_slips = set()
 
-# ===== Streamlit UI =====
+# ===== UI =====
 st.set_page_config(page_title="ระบบสแกนสลิปโอนเงิน", layout="wide")
-st.title("ระบบสแกนสลิปโอนเงิน (เวอร์ชั่น 0.3.4) จากสลิป BCEL One")
+st.title("ระบบสแกนสลิปโอนเงิน (เวอร์ชั่น 0.3.6) จากสลิป BCEL One")
 
-uploaded_files = st.file_uploader(
-    "อัปโหลดสลิปภาพ (รองรับหลายไฟล์)", 
-    type=["jpg", "jpeg", "png"], 
-    accept_multiple_files=True,
-    label_visibility="collapsed"
-)
-
+uploaded_files = st.file_uploader("อัปโหลดสลิปภาพ (รองรับหลายไฟล์)", type=["jpg", "jpeg", "png"], accept_multiple_files=True)
 show_ocr = st.checkbox("แสดงข้อความ OCR ทั้งหมด")
 
 columns = ["Date", "Time", "Amount (LAK)", "Reference", "Sender", "Receiver", "QR Data"]
 df_history = pd.DataFrame(columns=columns)
-uploaded_hashes = set()
+processed_hashes = set()
 
 def extract_amount_region(image):
     img_np = np.array(image)
@@ -64,7 +58,7 @@ def extract_amount_region(image):
     return Image.fromarray(thresh)
 
 def read_qr_code(img_np):
-    return ""  # pyzbar ใช้ไม่ได้บน Streamlit Cloud
+    return ""  # ยังไม่รองรับ pyzbar บน Streamlit Cloud
 
 for file in uploaded_files:
     image = Image.open(file)
@@ -85,16 +79,14 @@ for file in uploaded_files:
 
     slip_key = f"{date.group() if date else ''}-{time.group() if time else ''}-{amount}-{reference.group() if reference else ''}"
 
-    if slip_key in uploaded_hashes:
+    if slip_key in processed_hashes:
         st.warning(f"สลิปซ้ำ: {reference.group() if reference else 'N/A'}")
-
-        # ป้องกันส่ง Telegram ซ้ำ
-        if slip_key not in st.session_state.notified_hashes:
+        if slip_key not in st.session_state.notified_slips:
             send_telegram_message(f"🚨 พบสลิปซ้ำ: เลขอ้างอิง {reference.group() if reference else 'N/A'}")
-            st.session_state.notified_hashes.add(slip_key)
+            st.session_state.notified_slips.add(slip_key)
         continue
 
-    uploaded_hashes.add(slip_key)
+    processed_hashes.add(slip_key)
 
     row = {
         "Date": date.group() if date else "",
@@ -107,30 +99,24 @@ for file in uploaded_files:
     }
     df_history.loc[len(df_history)] = row
 
-    # ส่งเฉพาะสลิปใหม่
-    if slip_key not in st.session_state.notified_hashes:
+    if slip_key not in st.session_state.notified_slips:
         send_telegram_photo(image, caption=f"🧾 สลิปใหม่: {reference.group() if reference else 'ไม่มีเลขอ้างอิง'}")
-        st.session_state.notified_hashes.add(slip_key)
+        st.session_state.notified_slips.add(slip_key)
 
     if show_ocr:
         st.subheader(f"OCR: {reference.group() if reference else 'N/A'}")
         st.code(text)
 
-# ===== สรุปยอดและดาวน์โหลด =====
+# ===== สรุปยอดและ Export =====
 if not df_history.empty:
     try:
         total = df_history["Amount (LAK)"].astype(str).str.replace(",", "").astype(float).sum()
         st.success(f"รวมยอดทั้งหมด: {int(total):,} LAK")
     except:
-        st.warning("ไม่สามารถรวมยอดได้ เนื่องจากข้อมูลจำนวนเงินไม่ถูกต้องทั้งหมด")
+        st.warning("ไม่สามารถรวมยอดได้ เพราะมีข้อมูลจำนวนเงินผิดพลาด")
 
     st.dataframe(df_history)
 
     buffer = io.BytesIO()
     df_history.to_excel(buffer, index=False)
-    st.download_button(
-        "ดาวน์โหลดไฟล์ Excel", 
-        data=buffer.getvalue(),
-        file_name="slip_summary.xlsx", 
-        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    )
+    st.download_button("ดาวน์โหลด Excel", data=buffer.getvalue(), file_name="slip_summary.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
