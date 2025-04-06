@@ -6,37 +6,33 @@ import re
 import io
 import os
 
-# ตั้งค่า path ของ Tesseract
+# กำหนด path Tesseract ตามระบบ
 if os.name == 'nt':
     pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
 else:
-    pytesseract.pytesseract_cmd = 'tesseract'
+    pytesseract.pytesseract.tesseract_cmd = 'tesseract'
 
-# ตั้งค่าหน้าเว็บ
+# UI หน้าหลัก
 st.set_page_config(page_title="ระบบสแกนสลิป & สรุปยอด", layout="wide")
 st.title("ระบบสแกนสลิปโอนเงิน")
 
-# ฟังก์ชันดึงข้อมูลจากข้อความ OCR
+uploaded_files = st.file_uploader("อัปโหลดสลิปภาพ (รองรับหลายไฟล์)", type=["png", "jpg", "jpeg"], accept_multiple_files=True)
+
+# อ่านข้อมูลจาก text OCR
 def extract_transaction_data(text):
-    import re
-
-    def extract_transaction_data(text):
-    import re
-
     date_pattern = r'\d{2}/\d{2}/\d{2}'
     time_pattern = r'\d{2}:\d{2}:\d{2}'
-    amount_pattern = r'(\d{1,3}(?:,\d{3})+|\d+)\s*LAK'  # รองรับ 69,000 LAK และ 1000 LAK
+    amount_pattern = r'(\d{1,3}(?:,\d{3})+|\d+)\s*LAK'
     ref_pattern = r'\d{14}'
     ticket_pattern = r'(?<=Ticket\s)[A-Z0-9]+'
     receiver_pattern = r'[A-Z]+\s+[A-Z]+\s+MR'
 
     date = re.search(date_pattern, text)
     time = re.search(time_pattern, text)
-    amounts = re.findall(amount_pattern, text)  # หาได้หลายจำนวน
+    amounts = re.findall(amount_pattern, text)
 
-    # เลือก amount ที่มากที่สุด
     amount = max([int(a.replace(',', '')) for a in amounts]) if amounts else ''
-    
+
     reference = re.search(ref_pattern, text)
     ticket = re.search(ticket_pattern, text)
     receiver = re.search(receiver_pattern, text)
@@ -47,80 +43,79 @@ def extract_transaction_data(text):
         'Amount (LAK)': amount,
         'Reference': reference.group() if reference else '',
         'Ticket': ticket.group().strip() if ticket else '',
-        'Receiver': receiver.group().strip() if receiver else ''
+        'Receiver': receiver.group().strip() if receiver else '',
+        'Text': text  # เก็บไว้ตรวจสอบย้อนหลัง
     }
-# อัปโหลดสลิป
-uploaded_files = st.file_uploader("อัปโหลดสลิปภาพ (รองรับหลายไฟล์)", type=["png", "jpg", "jpeg"], accept_multiple_files=True)
 
-# ถ้ามีการอัปโหลด
+# สำหรับประวัติทั้งหมด
+all_results = []
+duplicate_results = []
+
+# Session เก็บประวัติ
+if 'all_history' not in st.session_state:
+    st.session_state['all_history'] = []
+
 if uploaded_files:
-    unique_results = []
-    duplicate_results = []
-    all_results = []
-
     for file in uploaded_files:
         image = Image.open(file)
         text = pytesseract.image_to_string(image, config='--oem 3 --psm 6')
-
-        # ปุ่มแสดงข้อความ OCR
-        with st.expander(f"แสดงข้อความ OCR ของ {file.name}", expanded=False):
-            st.code(text, language='text')
-
         data = extract_transaction_data(text)
-        all_results.append(data)
 
-        # ตรวจสอบสลิปซ้ำ
-        key_fields = ['Date', 'Time', 'Amount (LAK)', 'Reference', 'Ticket']
-        duplicate = any(
-            all(existing.get(k) == data.get(k) for k in key_fields)
-            for existing in unique_results
-        )
+        # ป้องกันซ้ำ (ดูจาก Date+Time+Amount+Ticket)
+        duplicate = False
+        for old in st.session_state['all_history']:
+            if (data['Date'], data['Time'], data['Amount (LAK)'], data['Ticket']) == \
+               (old['Date'], old['Time'], old['Amount (LAK)'], old['Ticket']):
+                duplicate = True
+                break
 
         if duplicate:
-            st.error(f"**พบสลิปซ้ำ:** {data}")
+            data['duplicate'] = True
             duplicate_results.append(data)
         else:
-            unique_results.append(data)
+            data['duplicate'] = False
+            all_results.append(data)
+            st.session_state['all_history'].append(data)
 
-    # แสดงสลิปที่ไม่ซ้ำ
-    if unique_results:
-        df = pd.DataFrame(unique_results)
-        df['Amount (LAK)'] = pd.to_numeric(df['Amount (LAK)'], errors='coerce')
-        df = df.dropna(subset=['Amount (LAK)'])
-        df.sort_values(by=['Date', 'Time'], inplace=True)
-        df.reset_index(drop=True, inplace=True)
-
-        st.success(f"รวมยอดทั้งหมด: {df['Amount (LAK)'].sum():,.0f} LAK")
+    # แสดงตาราง
+    if all_results:
+        df_new = pd.DataFrame(all_results)
+        df_new['Amount (LAK)'] = pd.to_numeric(df_new['Amount (LAK)'], errors='coerce')
+        st.success(f"รวมยอดทั้งหมด: {df_new['Amount (LAK)'].sum():,.0f} LAK")
         st.markdown("### รายการสลิปที่ไม่ซ้ำ:")
-        st.dataframe(df)
+        st.dataframe(df_new)
 
         buffer = io.BytesIO()
-        df.to_excel(buffer, index=False)
+        df_new.to_excel(buffer, index=False)
         buffer.seek(0)
-        st.download_button("ดาวน์โหลด Excel (ไม่ซ้ำ)", buffer, file_name="unique_slips.xlsx",
-                           mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
-    # แสดงสลิปที่ซ้ำ
+        st.download_button(
+            label="ดาวน์โหลด Excel (ไม่ซ้ำ)",
+            data=buffer,
+            file_name="unique_slips.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+
     if duplicate_results:
         df_dup = pd.DataFrame(duplicate_results)
-        st.markdown("### รายการสลิปที่ตรวจพบว่าซ้ำ:")
-        st.dataframe(df_dup, use_container_width=True)
+        st.markdown("### รายการสลิปที่ตรวจพบว่าซ้ำ:", unsafe_allow_html=True)
+        st.dataframe(df_dup.style.applymap(lambda v: 'background-color: #ffcccc', subset=pd.IndexSlice[:, :]))
 
-        buffer_dup = io.BytesIO()
-        df_dup.to_excel(buffer_dup, index=False)
-        buffer_dup.seek(0)
-        st.download_button("ดาวน์โหลด Excel (ซ้ำ)", buffer_dup, file_name="duplicate_slips.xlsx",
-                           mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+        buffer2 = io.BytesIO()
+        df_dup.to_excel(buffer2, index=False)
+        buffer2.seek(0)
 
-    # แสดงทั้งหมด (ซ้ำ+ไม่ซ้ำ)
-    df_all = pd.DataFrame(all_results)
-    st.markdown("### ประวัติทั้งหมดของสลิป (รวมทั้งซ้ำและไม่ซ้ำ):")
-    st.dataframe(df_all)
+        st.download_button(
+            label="ดาวน์โหลด Excel (ซ้ำ)",
+            data=buffer2,
+            file_name="duplicate_slips.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
 
-    buffer_all = io.BytesIO()
-    df_all.to_excel(buffer_all, index=False)
-    buffer_all.seek(0)
-    st.download_button("ดาวน์โหลด Excel (ทั้งหมด)", buffer_all, file_name="all_slips.xlsx",
-                       mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-else:
-    st.info("กรุณาอัปโหลดสลิปภาพเพื่อเริ่มต้นประมวลผล")
+    # ประวัติทั้งหมด
+    if st.session_state['all_history']:
+        df_all = pd.DataFrame(st.session_state['all_history'])
+        st.markdown("### ประวัติทั้งหมดของสลิป (รวมทั้งซ้ำและไม่ซ้ำ):")
+        st.dataframe(df_all)
+
+        #
