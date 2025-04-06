@@ -60,4 +60,4 @@ if uploaded_files:
     st.dataframe(df)
 
     buffer = io.BytesIO()
-    df.to_excel(buffer
+    df.to_excel(buffer, index=False)
