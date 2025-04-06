@@ -9,7 +9,7 @@ import re
 import cv2
 import requests
 
-# ========== CONFIG ==========
+# ===== CONFIG =====
 TELEGRAM_BOT_TOKEN = "7194336087:AAGSbq63qi4vpXJqZ2rwS940PVSnFWNHNtc"
 TELEGRAM_CHAT_ID = "-4745577562"
 
@@ -25,17 +25,22 @@ def send_telegram_photo(image, caption=""):
     files = {"photo": buffered}
     requests.post(url, files=files, data={"chat_id": TELEGRAM_CHAT_ID, "caption": caption})
 
-# ========== Streamlit UI ==========
+# ===== Streamlit UI =====
 st.set_page_config(page_title="ระบบสแกนสลิปโอนเงิน", layout="wide")
 st.title("ระบบสแกนสลิปโอนเงิน (เวอร์ชั่น 0.3.3) จากสลิป BCEL One")
 
-uploaded_files = st.file_uploader("อัปโหลดสลิปภาพ (รองรับหลายไฟล์)", type=["jpg", "jpeg", "png"], accept_multiple_files=True)
+uploaded_files = st.file_uploader(
+    "อัปโหลดสลิปภาพ (รองรับหลายไฟล์)", 
+    type=["jpg", "jpeg", "png"], 
+    accept_multiple_files=True,
+    label_visibility="collapsed"  # << ซ่อนชื่อไฟล์
+)
+
 show_ocr = st.checkbox("แสดงข้อความ OCR ทั้งหมด")
 
 columns = ["Date", "Time", "Amount (LAK)", "Reference", "Sender", "Receiver", "QR Data"]
 df_history = pd.DataFrame(columns=columns)
 uploaded_hashes = set()
-new_slip_count = 0
 
 def extract_amount_region(image):
     img_np = np.array(image)
@@ -48,8 +53,8 @@ def extract_amount_region(image):
     _, thresh = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
     return Image.fromarray(thresh)
 
-def read_qr_code(image_np):
-    return ""  # ปิดการใช้งาน QR บน Cloud (ไม่มี zbar)
+def read_qr_code(img_np):
+    return ""  # Streamlit Cloud ไม่รองรับ pyzbar, placeholder ไว้ก่อน
 
 for file in uploaded_files:
     image = Image.open(file)
@@ -65,17 +70,16 @@ for file in uploaded_files:
     receiver = re.findall(r"[A-Z ]+MR|MS", text)
     qr_data = read_qr_code(np.array(image))
 
-    amount_match = re.search(r"\d{1,3}[,\d]{0,10}", red_text)
+    amount_match = re.search(r"\d{1,3}(?:,\d{3})*", red_text)
     amount = amount_match.group().replace(",", "") if amount_match else ""
 
     slip_key = f"{date.group() if date else ''}-{time.group() if time else ''}-{amount}-{reference.group() if reference else ''}"
     if slip_key in uploaded_hashes:
         st.warning(f"สลิปซ้ำ: {reference.group() if reference else 'N/A'}")
-        send_telegram_message(f"\U0001F6A8 พบสลิปซ้ำ: เลขอ้างอิง {reference.group() if reference else 'N/A'}")
+        send_telegram_message(f"🚨 พบสลิปซ้ำ: เลขอ้างอิง {reference.group() if reference else 'N/A'}")
         continue
 
     uploaded_hashes.add(slip_key)
-    new_slip_count += 1
 
     row = {
         "Date": date.group() if date else "",
@@ -88,13 +92,13 @@ for file in uploaded_files:
     }
     df_history.loc[len(df_history)] = row
 
-    send_telegram_photo(image, caption=f"\U0001F9FE สลิปใหม่: {reference.group() if reference else 'ไม่มีเลขอ้างอิง'}")
+    send_telegram_photo(image, caption=f"🧾 สลิปใหม่: {reference.group() if reference else 'ไม่มีเลขอ้างอิง'}")
 
     if show_ocr:
-        with st.expander(f"OCR: {reference.group() if reference else 'N/A'}"):
-            st.code(text)
+        st.subheader(f"OCR: {reference.group() if reference else 'N/A'}")
+        st.code(text)
 
-# แสดงผลรวม
+# ===== สรุปยอดและดาวน์โหลด =====
 if not df_history.empty:
     try:
         total = df_history["Amount (LAK)"].astype(str).str.replace(",", "").astype(float).sum()
@@ -106,4 +110,9 @@ if not df_history.empty:
 
     buffer = io.BytesIO()
     df_history.to_excel(buffer, index=False)
-    st.download_button("ดาวน์โหลดไฟล์ Excel", data=buffer.getvalue(), file_name="slip_summary.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+    st.download_button(
+        "ดาวน์โหลดไฟล์ Excel", 
+        data=buffer.getvalue(),
+        file_name="slip_summary.xlsx", 
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
