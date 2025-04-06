@@ -20,14 +20,24 @@ uploaded_files = st.file_uploader("อัปโหลดสลิปภาพ (�
 def extract_transaction_data(text):
     date_pattern = r'\d{2}/\d{2}/\d{2}'
     time_pattern = r'\d{2}:\d{2}:\d{2}'
-    amount_pattern = r'(?:\d{1,3}(?:,\d{3})+|\d+)\s*LAK'
+    # ปรับ pattern นี้เพื่อดึงเฉพาะยอดโอนหลัก (ไม่รวมค่าธรรมเนียม)
+    amount_red_pattern = r'(?<!\d)(\d{1,3}(?:,\d{3})+)(?![\d\s]*LAK)'
     ref_pattern = r'\d{14}'
     receiver_pattern = r'[A-Z]+\s+[A-Z]+\s+MR'
 
     date = re.search(date_pattern, text)
     time = re.search(time_pattern, text)
+    amount = re.search(amount_red_pattern, text)
     reference = re.search(ref_pattern, text)
     receiver = re.search(receiver_pattern, text)
+
+    return {
+        'Date': date.group() if date else '',
+        'Time': time.group() if time else '',
+        'Amount (LAK)': amount.group().replace(',', '') if amount else '',
+        'Reference': reference.group() if reference else '',
+        'Receiver': receiver.group().strip() if receiver else ''
+    }
 
     # หา amount หลายค่าแล้วเลือกค่าที่มากที่สุด
     amount_matches = re.findall(amount_pattern, text)
