@@ -7,7 +7,8 @@ import re
 import io 
 import os 
 import cv2 
-import numpy as np from pyzbar.pyzbar 
+import numpy as np 
+from pyzbar.pyzbar 
 import decode
 
 ตั้งค่า path ของ Tesseract บน Windows
