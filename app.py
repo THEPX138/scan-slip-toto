@@ -11,7 +11,7 @@ import requests
 
 # ========== CONFIG ==========
 TELEGRAM_BOT_TOKEN = "7194336087:AAGSbq63qi4vpXJqZ2rwS940PVSnFWNHNtc"
-TELEGRAM_CHAT_ID = "-4745577562" 
+TELEGRAM_CHAT_ID = "-4745577562"
 
 def send_telegram_message(message):
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
@@ -91,8 +91,8 @@ for file in uploaded_files:
     send_telegram_photo(image, caption=f"\U0001F9FE สลิปใหม่: {reference.group() if reference else 'ไม่มีเลขอ้างอิง'}")
 
     if show_ocr:
-        st.subheader(f"OCR: {reference.group() if reference else 'N/A'}")
-        st.code(text)
+        with st.expander(f"OCR: {reference.group() if reference else 'N/A'}"):
+            st.code(text)
 
 # แสดงผลรวม
 if not df_history.empty:
