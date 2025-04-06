@@ -23,9 +23,9 @@ uploaded_files = st.file_uploader("อัปโหลดสลิปภาพ (�
 def extract_transaction_data(text):
     date_pattern = r'\d{2}/\d{2}/\d{2}'
     time_pattern = r'\d{2}:\d{2}:\d{2}'
-    amount_pattern = r'\d{1,3}(?:,\d{3})*(?:\.\d{2})?\s*LAK'
+    amount_pattern = r'(?:\d{1,3}(?:,\d{3})+|\d+)\s*LAK'
     ref_pattern = r'\d{14}'
-    receiver_pattern = r'[A-Z\s]{5,}MR'  # จับชื่อภาษาอังกฤษที่ลงท้ายด้วย MR
+    receiver_pattern = r'[A-Z]+\s+[A-Z]+\s+MR'
 
     date = re.search(date_pattern, text)
     time = re.search(time_pattern, text)
