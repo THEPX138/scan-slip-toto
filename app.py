@@ -6,7 +6,7 @@ import re
 import io
 import os
 
-# ตั้งค่า path ของ Tesseract ตามระบบปฏิบัติการ
+# ตั้งค่า path ของ Tesseract
 if os.name == 'nt':
     pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
 else:
@@ -54,8 +54,9 @@ if uploaded_files:
         image = Image.open(file)
         text = pytesseract.image_to_string(image, config='--oem 3 --psm 6')
 
-        with st.expander("OCR Text (แสดงข้อความจากภาพ)", expanded=False):
-    st.code(text, language='text')
+        # ซ่อน OCR Text (ลบหรือคอมเมนต์ไว้)
+        # st.markdown("#### OCR Text (แสดงข้อความจากภาพ):")
+        # st.code(text, language='text')
 
         data = extract_transaction_data(text)
         all_results.append(data)
