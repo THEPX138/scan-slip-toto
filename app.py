@@ -11,8 +11,8 @@ import requests
 import os
 
 # ========== CONFIG ==========
-TELEGRAM_BOT_TOKEN = "ใส่โทเคนบอทของคุณ"
-TELEGRAM_CHAT_ID = "ใส่ chat_id กลุ่มหรือบุคคล"
+TELEGRAM_BOT_TOKEN = AAGSbq63qi4vpXJqZ2rwS940PVSnFWNHNtc
+TELEGRAM_CHAT_ID = -445577562
 
 # ===== ฟังก์ชันส่งข้อความ / รูปเข้า Telegram =====
 def send_telegram_message(message):
