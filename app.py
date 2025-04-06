@@ -28,8 +28,9 @@ for file in uploaded_files:
     amount = amount_match.group(1).replace(",", "") if amount_match else ""
 
     reference = re.search(r"\d{10,20}", text)
-    sender = re.search(r"(?<=From account).*?(?=LAK)", text, re.DOTALL)
-    receiver = re.search(r"(?<=To account).*?(?=LAK)", text, re.DOTALL)
+    sender = re.search(r"From account\s+([A-Z ]+MR|MS)", text)
+    receiver = re.search(r"To account\s+([A-Z ]+MR|MS)", text)
+
 
     slip_key = f"{date.group() if date else ''}-{time.group() if time else ''}-{amount}-{reference.group() if reference else ''}"
     if slip_key in uploaded_hashes:
@@ -53,10 +54,12 @@ for file in uploaded_files:
 # แสดงผลลัพธ์
 if not df_history.empty:
     try:
-        total = df_history["Amount (LAK)"].astype(str).str.replace(",", "").astype(float).sum()
-        st.success(f"รวมยอดทั้งหมด: {int(total):,} LAK")
-    except:
-        st.warning("ไม่สามารถรวมยอดได้ เนื่องจากข้อมูลจำนวนเงินไม่ถูกต้องทั้งหมด")
+    df_amount = pd.to_numeric(df_history["Amount (LAK)"].str.replace(",", ""), errors="coerce")
+    total = df_amount.sum()
+    st.success(f"รวมยอดทั้งหมด: {int(total):,} LAK")
+except:
+    st.warning("ไม่สามารถรวมยอดได้ เนื่องจากข้อมูลจำนวนเงินไม่ถูกต้องทั้งหมด")
+
     st.dataframe(df_history)
 
     buffer = io.BytesIO()
