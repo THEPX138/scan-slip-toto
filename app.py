@@ -11,7 +11,7 @@ import requests
 import os
 
 # ========== CONFIG ==========
-TELEGRAM_BOT_TOKEN = AAGSbq63qi4vpXJqZ2rwS940PVSnFWNHNtc
+TELEGRAM_BOT_TOKEN = 7194336087:AAGSbq63qi4vpXJqZ2rwS940PVSnFWNHNtc
 TELEGRAM_CHAT_ID = -445577562
 
 # ===== ฟังก์ชันส่งข้อความ / รูปเข้า Telegram =====
