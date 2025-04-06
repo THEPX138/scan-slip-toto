@@ -18,16 +18,25 @@ st.title("ระบบสแกนสลิปโอนเงิน")
 
 # ฟังก์ชันดึงข้อมูลจากข้อความ OCR
 def extract_transaction_data(text):
+    import re
+
+    def extract_transaction_data(text):
+    import re
+
     date_pattern = r'\d{2}/\d{2}/\d{2}'
     time_pattern = r'\d{2}:\d{2}:\d{2}'
-    amount_pattern = r'69,000\s*LAK|[\d,]+\s*LAK'
+    amount_pattern = r'(\d{1,3}(?:,\d{3})+|\d+)\s*LAK'  # รองรับ 69,000 LAK และ 1000 LAK
     ref_pattern = r'\d{14}'
     ticket_pattern = r'(?<=Ticket\s)[A-Z0-9]+'
     receiver_pattern = r'[A-Z]+\s+[A-Z]+\s+MR'
 
     date = re.search(date_pattern, text)
     time = re.search(time_pattern, text)
-    amount = re.search(amount_pattern, text)
+    amounts = re.findall(amount_pattern, text)  # หาได้หลายจำนวน
+
+    # เลือก amount ที่มากที่สุด
+    amount = max([int(a.replace(',', '')) for a in amounts]) if amounts else ''
+    
     reference = re.search(ref_pattern, text)
     ticket = re.search(ticket_pattern, text)
     receiver = re.search(receiver_pattern, text)
@@ -35,12 +44,11 @@ def extract_transaction_data(text):
     return {
         'Date': date.group() if date else '',
         'Time': time.group() if time else '',
-        'Amount (LAK)': amount.group().replace(',', '').replace('LAK', '').strip() if amount else '',
+        'Amount (LAK)': amount,
         'Reference': reference.group() if reference else '',
         'Ticket': ticket.group().strip() if ticket else '',
         'Receiver': receiver.group().strip() if receiver else ''
     }
-
 # อัปโหลดสลิป
 uploaded_files = st.file_uploader("อัปโหลดสลิปภาพ (รองรับหลายไฟล์)", type=["png", "jpg", "jpeg"], accept_multiple_files=True)
 
