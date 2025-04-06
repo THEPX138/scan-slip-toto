@@ -60,5 +60,12 @@ if uploaded_files:
     st.dataframe(df)
 
     buffer = io.BytesIO()
-    df.to_excel(buffer, index=False)  # <<< วงเล็บครบแล้ว!
-    buffer.seek(0)
+df.to_excel(buffer, index=False)  # <<< ใส่วงเล็บครบแล้ว
+buffer.seek(0)
+
+st.download_button(
+    label="ดาวน์โหลดไฟล์ Excel",
+    data=buffer,
+    file_name="summary.xlsx",
+    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+)
