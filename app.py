@@ -83,12 +83,15 @@ slip_hash = hashlib.md5(slip_key.encode()).hexdigest()
 if slip_hash in uploaded_hashes:
     st.warning(f"สลิปซ้ำ: {reference.group() if reference else 'N/A'}")
     
-    # ส่ง Telegram เฉพาะรอบแรก
-    if slip_hash not in sent_slips:
-        send_telegram_message(f"🚨 พบสลิปซ้ำ: เลขอ้างอิง {reference.group() if reference else 'N/A'}")
-        sent_slips.add(slip_hash)
-    
-    continue  # ไม่ต้องเพิ่มลง DataFrame ซ้ำ
+   for file in uploaded_files:
+    ...
+    if slip_key in uploaded_hashes:
+        st.warning(f"สลิปซ้ำ: {reference.group() if reference else 'N/A'}")
+        if slip_key not in notified_hashes:
+            send_telegram_message(f"🚨 พบสลิปซ้ำ: เลขอ้างอิง {reference.group() if reference else 'N/A'}")
+            notified_hashes.add(slip_key)
+        continue  # ✅ ตรงนี้ต้องอยู่ใน for-loop เท่านั้น
+
 
 
     uploaded_hashes.add(slip_key)
