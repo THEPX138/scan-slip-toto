@@ -1,15 +1,13 @@
 import streamlit as st 
 import pandas as pd 
 import pytesseract 
-from PIL 
-import Image 
+from PIL import Image 
 import re 
 import io 
 import os 
 import cv2 
 import numpy as np 
-from pyzbar.pyzbar 
-import decode
+from pyzbar.pyzbar import decode
 
 ตั้งค่า path ของ Tesseract บน Windows
 
@@ -94,4 +92,3 @@ st.download_button("ดาวน์โหลด", buffer_dup, file_name="duplica
 
 st.markdown("## ประวัติทั้งหมดของสลิป (รวมทั้งซ้ำและไม่ซ้ำ):")
 st.dataframe(df_history)
-
