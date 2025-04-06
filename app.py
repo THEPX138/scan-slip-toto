@@ -6,7 +6,7 @@ import re
 import io
 import os
 
-# ตั้งค่า path ของ Tesseract ตามระบบปฏิบัติการ
+# ตั้งค่า path ของ Tesseract OCR ตามระบบปฏิบัติการ
 if os.name == 'nt':  # Windows
     pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
 else:  # Linux/Streamlit Cloud
@@ -15,13 +15,19 @@ else:  # Linux/Streamlit Cloud
 # ตั้งค่าหน้าเว็บ
 st.set_page_config(page_title="ระบบสแกนสลิป & สรุปยอด", layout="wide")
 st.title("ระบบสแกนสลิปโอนเงิน")
+
+# อัปโหลดไฟล์
 uploaded_files = st.file_uploader("อัปโหลดสลิปภาพ (รองรับหลายไฟล์)", type=["png", "jpg", "jpeg"], accept_multiple_files=True)
 
-# ฟังก์ชันแยกข้อมูลจากข้อความ OCR
+# ฟังก์ชันดึงข้อมูลจากข้อความ OCR
 def extract_transaction_data(text):
     date_pattern = r'\d{2}/\d{2}/\d{2}'
     time_pattern = r'\d{2}:\d{2}:\d{2}'
-    amount_pattern = r'(?:\d{1,3}(?:,\d{3})+|\d+)\s*LAK'
+    amount_patterns = [
+        r'(?<=\b)\d{1,3}(?:,\d{3})+(?:\.\d{2})?\s*LAK',  # 69,000 LAK
+        r'\d{2,6}\s*LAK',                               # 69000 LAK
+        r'(?<=\n)\d{2,6}(?=\n)'                         # บรรทัดเดี่ยว เช่น 69000
+    ]
     ref_pattern = r'\d{14}'
     receiver_pattern = r'[A-Z]+\s+[A-Z]+\s+MR'
 
@@ -30,43 +36,37 @@ def extract_transaction_data(text):
     reference = re.search(ref_pattern, text)
     receiver = re.search(receiver_pattern, text)
 
-    # หา amount หลายค่า แล้วเลือกค่าที่มากที่สุด (เช่น 69,000 แทน 1,000)
-    amounts = re.findall(amount_pattern, text)
-    cleaned_amounts = []
-    for amt in amounts:
-        try:
-            value = float(amt.replace(',', '').replace('LAK', '').strip())
-            cleaned_amounts.append(value)
-        except:
-            pass
-    amount = max(cleaned_amounts) if cleaned_amounts else ''
+    # หายอดที่เป็นไปได้ทั้งหมด แล้วเลือกค่าสูงสุด
+    amounts = []
+    for pattern in amount_patterns:
+        matches = re.findall(pattern, text)
+        for match in matches:
+            cleaned = match.replace(',', '').replace('LAK', '').strip()
+            if cleaned.isdigit():
+                amounts.append(int(cleaned))
+    max_amount = max(amounts) if amounts else ''
 
     return {
         'Date': date.group() if date else '',
         'Time': time.group() if time else '',
-        'Amount (LAK)': int(amount) if amount else '',
+        'Amount (LAK)': max_amount,
         'Reference': reference.group() if reference else '',
         'Receiver': receiver.group().strip() if receiver else ''
     }
 
-# ประมวลผลภาพทั้งหมด
+# ประมวลผล
 if uploaded_files:
     results = []
-
     for file in uploaded_files:
         image = Image.open(file)
+        text = pytesseract.image_to_string(image, config='--oem 3 --psm 6')
 
-        # OCR ด้วย config ที่ช่วยให้จับตัวเลขได้แม่นขึ้น
-        custom_config = r'--oem 3 --psm 6 -c tessedit_char_whitelist=0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz,:/ LAK'
-        text = pytesseract.image_to_string(image, config=custom_config)
-
-        st.markdown(f"#### OCR Text จากภาพ: {file.name}")
+        st.markdown("#### OCR Text (ผลลัพธ์ข้อความจากภาพ):")
         st.code(text, language='text')
 
         data = extract_transaction_data(text)
         results.append(data)
 
-    # แสดงผลข้อมูลเป็นตาราง
     if results:
         df = pd.DataFrame(results)
         df['Amount (LAK)'] = pd.to_numeric(df['Amount (LAK)'], errors='coerce')
@@ -88,4 +88,4 @@ if uploaded_files:
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
     else:
-        st.warning("ไม่พบข้อมูลที่สามารถอ่านได้จากภาพที่อัปโหลด")
+        st.warning("ไม่พบข้อมูลที่อ่านได้จากภาพที่อัปโหลด")
