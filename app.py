@@ -8,16 +8,16 @@ import io
 import re
 import cv2
 import requests
-import hashlib
 
-# ========== CONFIG ==========
+# ===== CONFIG TELEGRAM =====
 TELEGRAM_BOT_TOKEN = "7194336087:AAGSbq63qi4vpXJqZ2rwS940PVSnFWNHNtc"
-TELEGRAM_CHAT_ID = "-4745577562"
+TELEGRAM_CHAT_ID = "-4745577562"  # Group ID (use negative prefix for group)
 
-# ========== TELEGRAM ==========
 def send_telegram_message(message):
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
-    requests.post(url, data={"chat_id": TELEGRAM_CHAT_ID, "text": message})
+    data = {"chat_id": TELEGRAM_CHAT_ID, "text": message}
+    headers = {"Content-Type": "application/x-www-form-urlencoded; charset=UTF-8"}
+    requests.post(url, data=data, headers=headers)
 
 def send_telegram_photo(image, caption=""):
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendPhoto"
@@ -25,19 +25,22 @@ def send_telegram_photo(image, caption=""):
     image.save(buffered, format="JPEG")
     buffered.seek(0)
     files = {"photo": buffered}
-    requests.post(url, files=files, data={"chat_id": TELEGRAM_CHAT_ID, "caption": caption})
+    data = {"chat_id": TELEGRAM_CHAT_ID, "caption": caption}
+    headers = {"Content-Type": "application/x-www-form-urlencoded; charset=UTF-8"}
+    requests.post(url, files=files, data=data, headers=headers)
 
-# ========== STREAMLIT UI ==========
+# ===== STREAMLIT UI =====
 st.set_page_config(page_title="ระบบสแกนสลิปโอนเงิน", layout="wide")
-st.title("ระบบสแกนสลิปโอนเงิน (เวอร์ชั่น 0.3.4) จากสลิป BCEL One")
+st.markdown("<h1 style='font-size: 2.5rem;'>ระบบสแกนสลิปโอนเงิน (เวอร์ชั่น 0.3.4) จากสลิป BCEL One</h1>", unsafe_allow_html=True)
 
-uploaded_files = st.file_uploader("อัปโหลดสลิปภาพ (รองรับหลายไฟล์)", type=["jpg", "jpeg", "png"], accept_multiple_files=True, label_visibility="collapsed")
+uploaded_files = st.file_uploader("อัปโหลดสลิปภาพ (รองรับหลายไฟล์)", type=["jpg", "jpeg", "png"], accept_multiple_files=True)
+
 show_ocr = st.checkbox("แสดงข้อความ OCR ทั้งหมด")
 
 columns = ["Date", "Time", "Amount (LAK)", "Reference", "Sender", "Receiver"]
 df_history = pd.DataFrame(columns=columns)
 uploaded_hashes = set()
-sent_slips = set()
+notified_hashes = set()
 new_slip_count = 0
 
 def extract_amount_region(image):
@@ -51,7 +54,9 @@ def extract_amount_region(image):
     _, thresh = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
     return Image.fromarray(thresh)
 
-# ===== MAIN LOOP =====
+def read_qr_code(image_np):
+    return ""  # ตัดฟังก์ชัน QR ออกในเวอร์ชันง่าย
+
 for file in uploaded_files:
     image = Image.open(file)
     text = pytesseract.image_to_string(image, lang='eng+lao')
@@ -68,17 +73,15 @@ for file in uploaded_files:
     amount = amount_match.group().replace(",", "") if amount_match else ""
 
     slip_key = f"{date.group() if date else ''}-{time.group() if time else ''}-{amount}-{reference.group() if reference else ''}"
-    slip_hash = hashlib.md5(slip_key.encode()).hexdigest()
 
-    if slip_hash in uploaded_hashes:
+    if slip_key in uploaded_hashes:
         st.warning(f"สลิปซ้ำ: {reference.group() if reference else 'N/A'}")
-        if slip_hash not in sent_slips:
-            send_telegram_message(f"\ud83d\udea8 พบสลิปซ้ำ: เลขอ้างอิง {reference.group() if reference else 'N/A'}")
-            sent_slips.add(slip_hash)
+        if slip_key not in notified_hashes:
+            send_telegram_message(f"🚨 พบสลิปซ้ำ: เลขอ้างอิง {reference.group() if reference else 'N/A'}")
+            notified_hashes.add(slip_key)
         continue
 
-    uploaded_hashes.add(slip_hash)
-    sent_slips.add(slip_hash)
+    uploaded_hashes.add(slip_key)
     new_slip_count += 1
 
     row = {
@@ -91,13 +94,15 @@ for file in uploaded_files:
     }
     df_history.loc[len(df_history)] = row
 
-    send_telegram_photo(image, caption=f"\ud83d\udccb สลิปใหม่: {reference.group() if reference else 'ไม่มีเลขอ้างอิง'}")
+    if slip_key not in notified_hashes:
+        send_telegram_photo(image, caption=f"🧾 สลิปใหม่: {reference.group() if reference else 'ไม่มีเลขอ้างอิง'}")
+        notified_hashes.add(slip_key)
 
     if show_ocr:
         st.subheader(f"OCR: {reference.group() if reference else 'N/A'}")
         st.code(text)
 
-# ===== รวมยอดและแสดงตาราง =====
+# ===== SUMMARY =====
 if not df_history.empty:
     try:
         total = df_history["Amount (LAK)"].astype(str).str.replace(",", "").astype(float).sum()
@@ -105,12 +110,12 @@ if not df_history.empty:
     except:
         st.warning("ไม่สามารถรวมยอดได้ เนื่องจากข้อมูลจำนวนเงินไม่ถูกต้องทั้งหมด")
 
-    st.dataframe(df_history, use_container_width=True)
+    st.dataframe(df_history)
 
     buffer = io.BytesIO()
     df_history.to_excel(buffer, index=False)
-    st.download_button("\u0e14\u0e32\u0e27\u0e19\u0e4c\u0e42\u0e2b\u0e25\u0e14\u0e44\u0e1f\u0e25\u0e4c Excel", data=buffer.getvalue(), file_name="slip_summary.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+    st.download_button("ดาวน์โหลดไฟล์ Excel", data=buffer.getvalue(), file_name="slip_summary.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
-# ===== แจ้ง Telegram เมื่ออัปโหลดสำเร็จ =====
+# ===== SEND TELEGRAM NOTICE ONCE =====
 if new_slip_count > 0:
-    send_telegram_message(f"\ud83d\udcc5 อัปโหลดสลิปใหม่จำนวน {new_slip_count} รายการเรียบร้อยแล้ว")
+    send_telegram_message(f"📥 มีการอัปโหลดสลิปใหม่จำนวน {new_slip_count} รายการ")
