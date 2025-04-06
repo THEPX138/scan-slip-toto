@@ -4,19 +4,25 @@ import pytesseract
 from PIL import Image
 import re
 import io
-import os  # import os แค่ครั้งเดียวพอ
+import os
 
-# กำหนด path ของ Tesseract OCR ให้ถูกต้องตามระบบปฏิบัติการ
-if os.name == 'nt':  # ถ้าเป็น Windows
+# กำหนด path Tesseract ให้เหมาะกับแต่ละระบบปฏิบัติการ
+if os.name == 'nt':  # Windows
     pytesseract.pytesseract.tesseract_cmd = r'C:\\Program Files\\Tesseract-OCR\\tesseract.exe'
-else:  # ถ้าเป็น Linux/Cloud
+else:  # Linux / Streamlit Cloud
     pytesseract.pytesseract.tesseract_cmd = 'tesseract'
 
+# ส่วน UI
 st.set_page_config(page_title="ระบบสแกนสลิป & สรุปยอด", layout="wide")
 st.title("ระบบสแกนสลิปโอนเงิน")
 
-uploaded_files = st.file_uploader("อัปโหลดสลิปภาพ (รองรับหลายไฟล์)", type=["png", "jpg", "jpeg"], accept_multiple_files=True)
+uploaded_files = st.file_uploader(
+    "อัปโหลดสลิปภาพ (รองรับหลายไฟล์)",
+    type=["png", "jpg", "jpeg"],
+    accept_multiple_files=True
+)
 
+# ฟังก์ชันแยกข้อมูลจากข้อความ OCR
 def extract_transaction_data(text):
     date_pattern = r'\d{2}/\d{2}/\d{2}'
     time_pattern = r'\d{2}:\d{2}:\d{2}'
@@ -35,6 +41,7 @@ def extract_transaction_data(text):
         'Reference': reference.group() if reference else '',
     }
 
+# เมื่อลูกค้าอัปโหลดไฟล์
 if uploaded_files:
     results = []
     for file in uploaded_files:
@@ -53,12 +60,4 @@ if uploaded_files:
     st.dataframe(df)
 
     buffer = io.BytesIO()
-    df.to_excel(buffer, index=False)
-    buffer.seek(0)
-
-    st.download_button(
-        label="ดาวน์โหลดไฟล์ Excel",
-        data=buffer,
-        file_name="summary.xlsx",
-        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    )
+    df.to_excel(buffer
