@@ -1,3 +1,4 @@
+# ระบบสแกนสลิปโอนเงิน (เวอร์ชั่น 0.2.4) จากสลิป BCEL One
 
 import streamlit as st
 import pandas as pd
@@ -9,46 +10,64 @@ import io
 import numpy as np
 import cv2
 
-# ตั้งค่า pytesseract บน Windows
+# ตั้งค่า tesseract สำหรับ Windows (ถ้าใช้ Linux หรือ Mac ให้คอมเมนต์บรรทัดนี้ออก)
 pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
 
-# UI
-st.set_page_config(page_title="ระบบแสกนสลิปโอนเงิน", layout="wide")
-st.title("ระบบแสกนสลิปโอนเงิน (เวอร์ชั่น 0.2.3) จากสลิป BCEL One")
+# ตั้งค่าหน้าแอป
+st.set_page_config(page_title="ระบบสแกนสลิปโอนเงิน", layout="wide")
+st.title("ระบบสแกนสลิปโอนเงิน (เวอร์ชั่น 0.2.4) จากสลิป BCEL One")
 
+# อัปโหลดสลิป
 uploaded_files = st.file_uploader("อัปโหลดสลิปภาพ (รองรับหลายไฟล์)", type=["jpg", "jpeg", "png"], accept_multiple_files=True)
 show_ocr = st.checkbox("แสดงข้อความ OCR ทั้งหมด")
 
+# เตรียม DataFrame สำหรับสรุปผล
 df_history = pd.DataFrame(columns=["Date", "Time", "Amount (LAK)", "Reference"])
 
 def extract_info(image):
+    # อ่านข้อความจากภาพ
     text = pytesseract.image_to_string(image, lang='eng+lao')
+    
     if show_ocr:
         st.code(text)
 
-    date = re.search(r"(\d{2}/\d{2}/\d{2})", text)
-    time = re.search(r"(\d{2}:\d{2}:\d{2})", text)
-    amount = re.search(r"(69,000|\d{1,3}(,\d{3})*\s?LAK)", text)
-    ticket = re.search(r"(\d{14,}|GPAX\w+)", text)
+    # ดึงข้อมูลด้วย regex
+    date = re.search(r"\d{2}/\d{2}/\d{2,4}", text)
+    time = re.search(r"\d{2}:\d{2}:\d{2}", text)
+    amount = re.search(r"69,000|[1-9]\d{0,2}(?:,\d{3})*", text)
+    reference = re.search(r"\d{14}", text)
 
     return {
-        "Date": date.group(1) if date else "",
-        "Time": time.group(1) if time else "",
-        "Amount (LAK)": amount.group(1).replace(" LAK", "").replace(",", "") if amount else "",
-        "Reference": ticket.group(1) if ticket else ""
+        "Date": date.group() if date else "",
+        "Time": time.group() if time else "",
+        "Amount (LAK)": amount.group().replace(",", "") if amount else "",
+        "Reference": reference.group() if reference else ""
     }
 
-# ประมวลผล
-if uploaded_files:
-    for file in uploaded_files:
-        image = Image.open(file)
-        info = extract_info(image)
-        df_history.loc[len(df_history)] = info
+# ประมวลผลแต่ละไฟล์
+for file in uploaded_files:
+    image = Image.open(file)
+    info = extract_info(image)
 
-    total = df_history["Amount (LAK)"].astype(str).str.replace(",", "").str.extract(r"(\d+)")[0].astype(float).sum()
+    # ตรวจสอบสลิปซ้ำจาก Reference
+    if not df_history[
+        (df_history["Date"] == info["Date"]) &
+        (df_history["Time"] == info["Time"]) &
+        (df_history["Amount (LAK)"] == info["Amount (LAK)"]) &
+        (df_history["Reference"] == info["Reference"])
+    ].empty:
+        st.warning(f"สลิปซ้ำ: {info['Reference']}")
+        continue
+
+    df_history.loc[len(df_history)] = info
+
+# แสดงผลรวม
+if not df_history.empty:
+    total = df_history["Amount (LAK)"].astype(str).str.replace(",", "").astype(float).sum()
     st.success(f"รวมยอดทั้งหมด: {int(total):,} LAK")
     st.dataframe(df_history)
 
+    # ดาวน์โหลด Excel
     buffer = io.BytesIO()
-    df_history.to_excel(buffer, index=False)
+    df_history.to_excel(buffer, index=False, engine='openpyxl')
     st.download_button("ดาวน์โหลดไฟล์ Excel", buffer.getvalue(), file_name="summary.xlsx")
