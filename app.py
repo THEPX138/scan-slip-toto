@@ -9,7 +9,12 @@ import io
 import os
 
 if os.name == 'nt':
+    import os
+
+if os.name == 'nt':  # ถ้าเป็น Windows
     pytesseract.pytesseract.tesseract_cmd = r'C:\\Program Files\\Tesseract-OCR\\tesseract.exe'
+else:  # ถ้าเป็น Linux/Cloud
+    pytesseract.pytesseract.tesseract_cmd = 'tesseract'
 
 st.set_page_config(page_title="ระบบสแกนสลิป & สรุปยอด", layout="wide")
 st.title("ระบบสแกนสลิปโอนเงิน")
