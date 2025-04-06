@@ -1,44 +1,60 @@
-เวอร์ชั่น: 0.1
+ระบบแสกนสลิปโอนเงิน (เวอร์ชัน 0.1) จากสลิป BCEL One
 
-ระบบตัดตัวหนังสือสีแดง (ยอดเงินจริง) จากสลิป BCEL One
+import streamlit as st import pandas as pd import pytesseract from PIL import Image import re import os
 
-import cv2 import pytesseract from PIL import Image import numpy as np import re import streamlit as st import io
-
-ตั้ง path ของ tesseract หากใช้ Windows
+หากใช้บน Windows ให้กำหนด path ของ tesseract
 
 pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
 
-def extract_red_amount(image): # แปลงภาพเป็น numpy array หากเป็น PIL if isinstance(image, Image.Image): image = np.array(image)
+st.set_page_config(page_title="ระบบแสกนสลิปโอนเงิน", layout="wide") st.title("ระบบแสกนสลิปโอนเงิน")
 
-# ครอปเฉพาะบริเวณตัวหนังสือสีแดง (คาดว่าเป็นยอดเงินโอน)
-h, w = image.shape[:2]
-crop_img = image[int(h*0.55):int(h*0.7), int(w*0.25):int(w*0.85)]
+uploaded_files = st.file_uploader("อัปโหลดสลิปภาพ (PNG, JPG)", accept_multiple_files=True, type=["png", "jpg", "jpeg"]) show_ocr = st.checkbox("แสดงข้อความ OCR ทั้งหมด")
 
-# แปลงเป็นเทา แล้วปรับ contrast
-gray = cv2.cvtColor(crop_img, cv2.COLOR_BGR2GRAY)
-_, thresh = cv2.threshold(gray, 160, 255, cv2.THRESH_BINARY_INV)
+สำหรับเก็บผลลัพธ์
 
-# ใช้ OCR เฉพาะบริเวณที่ตัดมา
-text = pytesseract.image_to_string(thresh, lang='eng+lao')
+results = [] history_file = "history.csv" if os.path.exists(history_file): df_history = pd.read_csv(history_file) else: df_history = pd.DataFrame(columns=["Date", "Time", "Amount (LAK)", "Reference", "Ticket", "Receiver", "Text"])
 
-# ใช้ regex ดึงจำนวนเงิน เช่น 69,000 LAK
-matches = re.findall(r'\d{1,3}(,\d{3})?\s?LAK', text)
-amount = matches[0] if matches else "ไม่พบจำนวนเงิน"
-return amount, text, crop_img
+def extract_info(image): text = pytesseract.image_to_string(image, lang='eng+lao') date_match = re.search(r"(\d{2}/\d{2}/\d{2})", text) time_match = re.search(r"(\d{2}:\d{2}:\d{2})", text) amount_match = re.search(r"(\d{1,3}(,\d{3}))\sLAK", text) reference_match = re.search(r"(\d{15,20})", text) ticket_match = re.search(r"[A-Z0-9]{10,}", text) receiver_match = re.search(r"KONGMANY SOMSAMONE MR", text, re.IGNORECASE)
 
-ส่วน Streamlit
+return {
+    "Date": date_match.group(1) if date_match else "",
+    "Time": time_match.group(1) if time_match else "",
+    "Amount (LAK)": amount_match.group(1).replace(",", "") if amount_match else "",
+    "Reference": reference_match.group(1) if reference_match else "",
+    "Ticket": ticket_match.group(0) if ticket_match else "",
+    "Receiver": "KONGMANY SOMSAMONE MR" if receiver_match else "",
+    "Text": text
+}
 
-st.set_page_config(page_title="ระบบแยกยอดเงินจากตัวหนังสือสีแดง", layout="centered") st.title("ระบบแยกยอดเงินตัวหนังสือสีแดงจากสลิปโอน BCEL")
+for uploaded_file in uploaded_files: image = Image.open(uploaded_file) info = extract_info(image)
 
-uploaded_file = st.file_uploader("อัปโหลดภาพสลิป (PNG, JPG)", type=["png", "jpg", "jpeg"])
+# ตรวจสอบข้อมูลซ้ำจากประวัติ
+duplicate = df_history[(df_history['Date'] == info['Date']) &
+                       (df_history['Time'] == info['Time']) &
+                       (df_history['Amount (LAK)'] == info['Amount (LAK)']) &
+                       (df_history['Ticket'] == info['Ticket'])]
 
-if uploaded_file: image = Image.open(uploaded_file) st.image(image, caption='ภาพต้นฉบับ', use_column_width=True)
+if not duplicate.empty:
+    st.error("พบข้อมูลซ้ำ!")
+else:
+    st.success("สลิปใหม่ ตรวจสอบแล้วไม่ซ้ำ")
 
-with st.spinner("กำลังประมวลผล OCR..."):
-    amount, ocr_text, cropped_image = extract_red_amount(image)
+if show_ocr:
+    with st.expander(f"OCR Text: {uploaded_file.name}"):
+        st.text(info['Text'])
 
-st.success(f"ยอดเงินที่ตรวจพบ: {amount}")
-st.image(cropped_image, caption='บริเวณตัวหนังสือสีแดงที่ครอปมา', use_column_width=True)
+results.append(info)
 
-if st.checkbox("แสดงข้อความ OCR เต็ม"):
-    st.code(ocr_text)
+แสดงผลรวมและตาราง
+
+if results: df = pd.DataFrame(results) st.subheader("รายการสลิปที่อัปโหลด") st.dataframe(df)
+
+# อัปเดตประวัติ
+df_history = pd.concat([df_history, df], ignore_index=True)
+df_history.drop_duplicates(subset=["Date", "Time", "Amount (LAK)", "Ticket"], keep="first", inplace=True)
+df_history.to_csv(history_file, index=False)
+
+st.download_button("ดาวน์โหลด Excel", data=df.to_csv(index=False).encode('utf-8'), file_name="slips.csv", mime="text/csv")
+
+st.subheader("ประวัติสลิปทั้งหมด")
+st.dataframe(df_history)
