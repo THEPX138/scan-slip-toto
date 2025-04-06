@@ -1,5 +1,6 @@
 streamlit
 pytesseract
 Pillow
-pandas
-openpyxl
+opencv-python-headless
+numpy
+pyzbar
