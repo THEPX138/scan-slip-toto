@@ -13,15 +13,25 @@ from pyzbar.pyzbar import decode
 
 if os.name == 'nt': pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
 
-st.set_page_config(page_title="ระบบสแกนสลิป", layout="wide") st.title("ระบบสแกนสลิปโอนเงิน")
+st.set_page_config(page_title="ระบบสแกนสลิป", layout="wide") 
+st.title("ระบบสแกนสลิปโอนเงิน")
 
 uploaded_files = st.file_uploader("อัปโหลดสลิปภาพ (รองรับหลายไฟล์)", type=["png", "jpg", "jpeg"], accept_multiple_files=True)
 
-all_results = [] uploaded_history = [] duplicate_slips = [] detected_texts = []
+all_results = [] 
+uploaded_history = [] 
+duplicate_slips = [] 
+detected_texts = []
 
-ฟังก์ชัน OCR และแยกข้อมูลจากข้อความ
+# ฟังก์ชัน OCR และแยกข้อมูลจากข้อความ
 
-def extract_transaction_data(text): date_pattern = r"\d{2}/\d{2}/\d{2}" time_pattern = r"\d{2}:\d{2}:\d{2}" amount_pattern = r"69,000\sLAK|\d{1,3}(?:,\d{3})\s*LAK" reference_pattern = r"\d{14}" ticket_pattern = r"GPAXZVILPZFM|[A-Z0-9]{12}" receiver_pattern = r"[A-Z]+\s+[A-Z]+\s+MR"
+def extract_transaction_data(text): 
+    date_pattern = r"\d{2}/\d{2}/\d{2}" 
+    time_pattern = r"\d{2}:\d{2}:\d{2}" 
+    amount_pattern = r"69,000\sLAK|\d{1,3}(?:,\d{3})\s*LAK" 
+    reference_pattern = r"\d{14}" 
+    ticket_pattern = r"GPAXZVILPZFM|[A-Z0-9]{12}" 
+    receiver_pattern = r"[A-Z]+\s+[A-Z]+\s+MR"
 
 date = re.search(date_pattern, text)
 time = re.search(time_pattern, text)
@@ -40,7 +50,7 @@ return {
     'Text': text
 }
 
-ตรวจจับ QR
+# ตรวจจับ QR
 
 def decode_qr(image): decoded = decode(image) if decoded: return decoded[0].data.decode('utf-8') return ''
 
