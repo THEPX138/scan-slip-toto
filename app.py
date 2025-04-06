@@ -7,7 +7,6 @@ import numpy as np
 import io
 import re
 import cv2
-from pyzbar.pyzbar import decode
 import requests
 import os
 
@@ -33,7 +32,7 @@ st.title("ระบบสแกนสลิปโอนเงิน (เวอ�
 uploaded_files = st.file_uploader("อัปโหลดสลิปภาพ (รองรับหลายไฟล์)", type=["jpg", "jpeg", "png"], accept_multiple_files=True)
 show_ocr = st.checkbox("แสดงข้อความ OCR ทั้งหมด")
 
-columns = ["Date", "Time", "Amount (LAK)", "Reference", "Sender", "Receiver", "QR Data"]
+columns = ["Date", "Time", "Amount (LAK)", "Reference", "Sender", "Receiver"]
 df_history = pd.DataFrame(columns=columns)
 uploaded_hashes = set()
 new_slip_count = 0
@@ -49,11 +48,6 @@ def extract_amount_region(image):
     _, thresh = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
     return Image.fromarray(thresh)
 
-def read_qr_code(image):
-    decoded_objects = decode(image)
-    for obj in decoded_objects:
-        return obj.data.decode('utf-8')
-    return ""
 
 for file in uploaded_files:
     image = Image.open(file)
