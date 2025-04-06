@@ -1,4 +1,4 @@
-# ระบบสแกนสลิปโอนเงิน (เวอร์ชั่น 0.3.3) จากสลิป BCEL One - พร้อมใช้งานบน Streamlit Cloud
+# ระบบสแกนสลิปโอนเงิน (เวอร์ชั่น 0.3.3) จากสลิป BCEL One
 import streamlit as st
 import pandas as pd
 import pytesseract
@@ -8,13 +8,11 @@ import io
 import re
 import cv2
 import requests
-import os
 
 # ========== CONFIG ==========
-TELEGRAM_BOT_TOKEN = "7194336087:AAGSbq63qi4vpXJqZ2rwS940PVSnFWNHNtc"
-TELEGRAM_CHAT_ID = "-4745577562"
+TELEGRAM_BOT_TOKEN = "ใส่โทเคนบอทของคุณ"
+TELEGRAM_CHAT_ID = "ใส่ chat_id กลุ่มหรือบุคคล"
 
-# ===== ฟังก์ชันส่งข้อความ / รูปเข้า Telegram =====
 def send_telegram_message(message):
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
     requests.post(url, data={"chat_id": TELEGRAM_CHAT_ID, "text": message})
@@ -27,11 +25,7 @@ def send_telegram_photo(image, caption=""):
     files = {"photo": buffered}
     requests.post(url, files=files, data={"chat_id": TELEGRAM_CHAT_ID, "caption": caption})
 
-# ===== ฟังก์ชันจำลองการอ่าน QR (ปิด pyzbar ชั่วคราว) =====
-def read_qr_code(image_np):
-    return ""  # Streamlit Cloud ยังไม่รองรับ libzbar
-
-# ===== Streamlit UI =====
+# ========== Streamlit UI ==========
 st.set_page_config(page_title="ระบบสแกนสลิปโอนเงิน", layout="wide")
 st.title("ระบบสแกนสลิปโอนเงิน (เวอร์ชั่น 0.3.3) จากสลิป BCEL One")
 
@@ -43,7 +37,6 @@ df_history = pd.DataFrame(columns=columns)
 uploaded_hashes = set()
 new_slip_count = 0
 
-# ===== ดึงเฉพาะข้อความสีแดง (จำนวนเงิน) =====
 def extract_amount_region(image):
     img_np = np.array(image)
     hsv = cv2.cvtColor(img_np, cv2.COLOR_RGB2HSV)
@@ -55,10 +48,12 @@ def extract_amount_region(image):
     _, thresh = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
     return Image.fromarray(thresh)
 
-# ===== LOOP ประมวลผลแต่ละไฟล์ =====
+def read_qr_code(image_np):
+    return ""  # ปิดการใช้งาน QR บน Cloud (ไม่มี zbar)
+
 for file in uploaded_files:
     image = Image.open(file)
-    text = pytesseract.image_to_string(image, lang='eng')  # ใช้ eng อย่างเดียวบน Cloud
+    text = pytesseract.image_to_string(image, lang='eng+lao')
 
     red_area = extract_amount_region(image)
     red_text = pytesseract.image_to_string(red_area, config='--psm 6 digits')
@@ -99,7 +94,7 @@ for file in uploaded_files:
         st.subheader(f"OCR: {reference.group() if reference else 'N/A'}")
         st.code(text)
 
-# ===== รวมยอดและแสดงตาราง =====
+# แสดงผลรวม
 if not df_history.empty:
     try:
         total = df_history["Amount (LAK)"].astype(str).str.replace(",", "").astype(float).sum()
@@ -111,8 +106,4 @@ if not df_history.empty:
 
     buffer = io.BytesIO()
     df_history.to_excel(buffer, index=False)
-    st.download_button("\u0e14\u0e32\u0e27\u0e19\u0e4c\u0e42\u0e2b\u0e25\u0e14\u0e44\u0e1f\u0e25\u0e4c Excel", data=buffer.getvalue(), file_name="slip_summary.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-
-# ===== สรุปแจ้งเตือน =====
-if new_slip_count > 0:
-    send_telegram_message(f"\U0001F4E5 มีการอัปโหลดสลิปใหม่จำนวน {new_slip_count} รายการ")
+    st.download_button("ดาวน์โหลดไฟล์ Excel", data=buffer.getvalue(), file_name="slip_summary.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
