@@ -1,4 +1,4 @@
-# ระบบสแกนสลิปโอนเงิน (เวอร์ชั่น 0.3.3) จากสลิป BCEL One
+# ระบบสแกนสลิปโอนเงิน (เวอร์ชั่น 0.3.4) จากสลิป BCEL One
 import streamlit as st
 import pandas as pd
 import pytesseract
@@ -15,7 +15,10 @@ TELEGRAM_CHAT_ID = "ใส่ chat_id กลุ่มหรือบุคคล
 
 def send_telegram_message(message):
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
-    requests.post(url, data={"chat_id": TELEGRAM_CHAT_ID, "text": message})
+    try:
+        requests.post(url, data={"chat_id": TELEGRAM_CHAT_ID, "text": message})
+    except Exception as e:
+        st.error(f"ส่งข้อความ Telegram ล้มเหลว: {e}")
 
 def send_telegram_photo(image, caption=""):
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendPhoto"
@@ -23,17 +26,24 @@ def send_telegram_photo(image, caption=""):
     image.save(buffered, format="JPEG")
     buffered.seek(0)
     files = {"photo": buffered}
-    requests.post(url, files=files, data={"chat_id": TELEGRAM_CHAT_ID, "caption": caption})
+    try:
+        requests.post(url, files=files, data={"chat_id": TELEGRAM_CHAT_ID, "caption": caption})
+    except Exception as e:
+        st.error(f"ส่งภาพ Telegram ล้มเหลว: {e}")
+
+# ===== Session State สำหรับกันส่งซ้ำ =====
+if "notified_hashes" not in st.session_state:
+    st.session_state.notified_hashes = set()
 
 # ===== Streamlit UI =====
 st.set_page_config(page_title="ระบบสแกนสลิปโอนเงิน", layout="wide")
-st.title("ระบบสแกนสลิปโอนเงิน (เวอร์ชั่น 0.3.3) จากสลิป BCEL One")
+st.title("ระบบสแกนสลิปโอนเงิน (เวอร์ชั่น 0.3.4) จากสลิป BCEL One")
 
 uploaded_files = st.file_uploader(
     "อัปโหลดสลิปภาพ (รองรับหลายไฟล์)", 
     type=["jpg", "jpeg", "png"], 
     accept_multiple_files=True,
-    label_visibility="collapsed"  # << ซ่อนชื่อไฟล์
+    label_visibility="collapsed"
 )
 
 show_ocr = st.checkbox("แสดงข้อความ OCR ทั้งหมด")
@@ -54,7 +64,7 @@ def extract_amount_region(image):
     return Image.fromarray(thresh)
 
 def read_qr_code(img_np):
-    return ""  # Streamlit Cloud ไม่รองรับ pyzbar, placeholder ไว้ก่อน
+    return ""  # pyzbar ใช้ไม่ได้บน Streamlit Cloud
 
 for file in uploaded_files:
     image = Image.open(file)
@@ -74,9 +84,14 @@ for file in uploaded_files:
     amount = amount_match.group().replace(",", "") if amount_match else ""
 
     slip_key = f"{date.group() if date else ''}-{time.group() if time else ''}-{amount}-{reference.group() if reference else ''}"
+
     if slip_key in uploaded_hashes:
         st.warning(f"สลิปซ้ำ: {reference.group() if reference else 'N/A'}")
-        send_telegram_message(f"🚨 พบสลิปซ้ำ: เลขอ้างอิง {reference.group() if reference else 'N/A'}")
+
+        # ป้องกันส่ง Telegram ซ้ำ
+        if slip_key not in st.session_state.notified_hashes:
+            send_telegram_message(f"🚨 พบสลิปซ้ำ: เลขอ้างอิง {reference.group() if reference else 'N/A'}")
+            st.session_state.notified_hashes.add(slip_key)
         continue
 
     uploaded_hashes.add(slip_key)
@@ -92,7 +107,10 @@ for file in uploaded_files:
     }
     df_history.loc[len(df_history)] = row
 
-    send_telegram_photo(image, caption=f"🧾 สลิปใหม่: {reference.group() if reference else 'ไม่มีเลขอ้างอิง'}")
+    # ส่งเฉพาะสลิปใหม่
+    if slip_key not in st.session_state.notified_hashes:
+        send_telegram_photo(image, caption=f"🧾 สลิปใหม่: {reference.group() if reference else 'ไม่มีเลขอ้างอิง'}")
+        st.session_state.notified_hashes.add(slip_key)
 
     if show_ocr:
         st.subheader(f"OCR: {reference.group() if reference else 'N/A'}")
