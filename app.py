@@ -6,7 +6,7 @@ import re
 import io
 
 # (เพิ่มบรรทัดนี้ถ้าใช้ Windows และติดตั้ง Tesseract ไว้แล้ว)
-pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
+
 
 st.set_page_config(page_title="ระบบสแกนสลิป & สรุปยอด", layout="wide")
 st.title("ระบบสแกนสลิปโอนเงิน")
