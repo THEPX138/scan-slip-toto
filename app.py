@@ -11,8 +11,10 @@ from datetime import datetime
 st.set_page_config(page_title="ระบบสแกนสลิปโอนเงิน", layout="wide")
 st.title("💸 ระบบสแกนสลิปโอนเงิน")
 
-# ตั้ง path สำหรับ Windows (เปลี่ยนตามที่ติดตั้ง)
-pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
+import pytesseract
+
+# ตั้งค่า path ให้ตรงกับเครื่องของคุณ
+pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
 
 # โหลดประวัติ (ถ้ามี)
 @st.cache_data
