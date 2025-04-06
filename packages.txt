@@ -1,0 +1,3 @@
+tesseract-ocr
+libtesseract-dev
+Add packages.txt for Tesseract support on Streamlit Cloud
