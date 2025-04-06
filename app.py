@@ -47,28 +47,31 @@ if uploaded_files:
     for file in uploaded_files:
         image = Image.open(file)
         text = pytesseract.image_to_string(image, config='--oem 3 --psm 6')
-
-        st.text_area("OCR Text (แสดงผลข้อความจากภาพ)", text, height=200)
-
+        st.markdown("#### OCR Text (แสดงผลข้อความจากภาพ):")
+        st.code(text, language='text')
         data = extract_transaction_data(text)
         results.append(data)
 
-    df = pd.DataFrame(results)
-    df['Amount (LAK)'] = pd.to_numeric(df['Amount (LAK)'], errors='coerce')
-    df = df.dropna(subset=['Amount (LAK)'])
-    df.sort_values(by=['Date', 'Time'], inplace=True)
-    df.reset_index(drop=True, inplace=True)
+    # ตรวจสอบว่ามีข้อมูลจาก OCR หรือไม่ ก่อนสร้างตาราง
+    if results:
+        df = pd.DataFrame(results)
+        df['Amount (LAK)'] = pd.to_numeric(df['Amount (LAK)'], errors='coerce')
+        df = df.dropna(subset=['Amount (LAK)'])
+        df.sort_values(by=['Date', 'Time'], inplace=True)
+        df.reset_index(drop=True, inplace=True)
 
-    st.success(f"รวมยอดทั้งหมด: {df['Amount (LAK)'].sum():,.0f} LAK")
-    st.dataframe(df)
+        st.success(f"รวมยอดทั้งหมด: {df['Amount (LAK)'].sum():,.0f} LAK")
+        st.dataframe(df)
 
-    buffer = io.BytesIO()
-    df.to_excel(buffer, index=False)
-    buffer.seek(0)
+        buffer = io.BytesIO()
+        df.to_excel(buffer, index=False)
+        buffer.seek(0)
 
-    st.download_button(
-        label="ดาวน์โหลดไฟล์ Excel",
-        data=buffer,
-        file_name="summary.xlsx",
-        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    )
+        st.download_button(
+            label="ดาวน์โหลดไฟล์ Excel",
+            data=buffer,
+            file_name="summary.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+    else:
+        st.warning("ไม่พบข้อมูลที่อ่านได้จากภาพที่อัปโหลด")
