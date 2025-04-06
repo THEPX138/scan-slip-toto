@@ -97,6 +97,22 @@ for file in uploaded_files:
     if show_ocr:
         st.subheader(f"OCR: {reference.group() if reference else 'N/A'}")
         st.code(text)
+sent_slips = set()  # เก็บ hash ของ slip ที่เคยส่งแล้ว
+
+...
+
+slip_key = f"{date.group() if date else ''}-{time.group() if time else ''}-{amount}-{reference.group() if reference else ''}"
+slip_hash = hashlib.md5(slip_key.encode()).hexdigest()
+
+if slip_hash in uploaded_hashes:
+    st.warning(f"สลิปซ้ำ: {reference.group() if reference else 'N/A'}")
+    
+    # ส่ง Telegram เฉพาะรอบแรก
+    if slip_hash not in sent_slips:
+        send_telegram_message(f"🚨 พบสลิปซ้ำ: เลขอ้างอิง {reference.group() if reference else 'N/A'}")
+        sent_slips.add(slip_hash)
+    
+    continue  # ไม่ต้องเพิ่มลง DataFrame ซ้ำ
 
 # ===== สรุปยอดและดาวน์โหลด =====
 if not df_history.empty:
