@@ -1,4 +1,4 @@
-SSSS# ระบบสแกนสลิปโอนเงิน (เวอร์ชั่น 0.2.5) จากสลิป BCEL One
+# ระบบสแกนสลิปโอนเงิน (เวอร์ชั่น 0.2.5) จากสลิป BCEL One
 import streamlit as st
 import pandas as pd
 import pytesseract
