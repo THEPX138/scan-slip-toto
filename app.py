@@ -18,9 +18,9 @@ TELEGRAM_CHAT_ID = "-4745577562"
 GDRIVE_FOLDER_ID = "1LdK4GBanj3EhFNfN0QcPeC7QUUGrSRNW"
 
 # โหลด service account credentials จากไฟล์ JSON
-with open("scanslipuploader-19bcb43788e7.json") as source:
+with open("scanslipuploader-df6c15243236.json") as source:
     credentials_info = json.load(source)
-    credentials = Credentials.from_service_account_info(credentials_info, scopes=["https://www.googleapis.com/auth/drive"])
+credentials = Credentials.from_service_account_info(credentials_info, scopes=["https://www.googleapis.com/auth/drive"])
 
 # ===== Function Zone =====
 def send_telegram_message(message):
