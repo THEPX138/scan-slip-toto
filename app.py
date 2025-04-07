@@ -1,30 +1,51 @@
-# ระบบสแกนสลิป BCEL One (เวอร์ชั่น 0.3.9)
+# ระบบสแกนสลิปโอนเงิน (เวอร์ชั่น 0.3.6)
 import streamlit as st
 import pandas as pd
 import pytesseract
 from PIL import Image
-import re
-import os
-import io
 import numpy as np
+import io
+import re
 import cv2
-from pyzbar.pyzbar import decode
+import requests
 
-# ตั้งค่า Tesseract (เฉพาะ Windows)
-pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
+# ===== CONFIG =====
+TELEGRAM_BOT_TOKEN = "ใส่โทเคนบอทของคุณ"
+TELEGRAM_CHAT_ID = "ใส่ chat_id กลุ่มหรือบุคคล"
 
+def send_telegram_message(message):
+    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+    try:
+        requests.post(url, data={"chat_id": TELEGRAM_CHAT_ID, "text": message})
+    except Exception as e:
+        st.error(f"ส่งข้อความ Telegram ล้มเหลว: {e}")
+
+def send_telegram_photo(image, caption=""):
+    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendPhoto"
+    buffered = io.BytesIO()
+    image.save(buffered, format="JPEG")
+    buffered.seek(0)
+    files = {"photo": buffered}
+    try:
+        requests.post(url, files=files, data={"chat_id": TELEGRAM_CHAT_ID, "caption": caption})
+    except Exception as e:
+        st.error(f"ส่งภาพ Telegram ล้มเหลว: {e}")
+
+# ===== Session State =====
+if "notified_slips" not in st.session_state:
+    st.session_state.notified_slips = set()
+
+# ===== UI =====
 st.set_page_config(page_title="ระบบสแกนสลิปโอนเงิน", layout="wide")
-st.title("ระบบสแกนสลิปโอนเงิน (เวอร์ชั่น 0.3.9) จากสลิป BCEL One")
+st.title("ระบบสแกนสลิปโอนเงิน (เวอร์ชั่น 0.3.6) จากสลิป BCEL One")
 
 uploaded_files = st.file_uploader("อัปโหลดสลิปภาพ (รองรับหลายไฟล์)", type=["jpg", "jpeg", "png"], accept_multiple_files=True)
 show_ocr = st.checkbox("แสดงข้อความ OCR ทั้งหมด")
 
-# DataFrame สำหรับเก็บผลลัพธ์
-columns = ["Date", "Time", "Amount (LAK)", "Reference", "QR Data"]
+columns = ["Date", "Time", "Amount (LAK)", "Reference", "Sender", "Receiver", "QR Data"]
 df_history = pd.DataFrame(columns=columns)
-uploaded_hashes = set()
+processed_hashes = set()
 
-# ฟังก์ชันตัดภาพเฉพาะส่วนที่เป็นตัวอักษรสีแดง
 def extract_amount_region(image):
     img_np = np.array(image)
     hsv = cv2.cvtColor(img_np, cv2.COLOR_RGB2HSV)
@@ -36,59 +57,66 @@ def extract_amount_region(image):
     _, thresh = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
     return Image.fromarray(thresh)
 
-# ฟังก์ชันอ่าน QR code
-def read_qr_code(image):
-    decoded_objects = decode(image)
-    for obj in decoded_objects:
-        return obj.data.decode('utf-8')
-    return ""
+def read_qr_code(img_np):
+    return ""  # ยังไม่รองรับ pyzbar บน Streamlit Cloud
 
-# ประมวลผลภาพแต่ละไฟล์
 for file in uploaded_files:
     image = Image.open(file)
     text = pytesseract.image_to_string(image, lang='eng+lao')
 
-    # อ่านจำนวนเงินจากตัวหนังสือสีแดง
     red_area = extract_amount_region(image)
     red_text = pytesseract.image_to_string(red_area, config='--psm 6 digits')
-    amount_match = re.search(r"\d{1,3}(,\d{3})*", red_text)
-    amount = amount_match.group().replace(",", "") if amount_match else ""
 
-    # ดึงข้อมูลจาก OCR
     date = re.search(r"\d{2}/\d{2}/\d{2,4}", text)
     time = re.search(r"\d{2}:\d{2}:\d{2}", text)
     reference = re.search(r"\d{15,20}", text)
-
-    # อ่าน QR
+    sender = re.search(r"[A-Z ]+MS|MR", text)
+    receiver = re.findall(r"[A-Z ]+MR|MS", text)
     qr_data = read_qr_code(np.array(image))
 
-    # ตรวจสอบสลิปซ้ำ
-    slip_key = f"{date.group() if date else ''}-{time.group() if time else ''}-{amount}-{reference.group() if reference else ''}"
-    if slip_key in uploaded_hashes:
-        st.warning(f"สลิปซ้ำ: {reference.group() if reference else 'N/A'}")
-        continue
-    uploaded_hashes.add(slip_key)
+    amount_match = re.search(r"\d{1,3}(?:,\d{3})*", red_text)
+    amount = amount_match.group().replace(",", "") if amount_match else ""
 
-    # เพิ่มข้อมูลใน DataFrame
-    df_history.loc[len(df_history)] = {
+    slip_key = f"{date.group() if date else ''}-{time.group() if time else ''}-{amount}-{reference.group() if reference else ''}"
+
+    if slip_key in processed_hashes:
+        st.warning(f"สลิปซ้ำ: {reference.group() if reference else 'N/A'}")
+        if slip_key not in st.session_state.notified_slips:
+            send_telegram_message(f"🚨 พบสลิปซ้ำ: เลขอ้างอิง {reference.group() if reference else 'N/A'}")
+            st.session_state.notified_slips.add(slip_key)
+        continue
+
+    processed_hashes.add(slip_key)
+
+    row = {
         "Date": date.group() if date else "",
         "Time": time.group() if time else "",
         "Amount (LAK)": amount,
         "Reference": reference.group() if reference else "",
+        "Sender": sender.group() if sender else "",
+        "Receiver": receiver[1] if len(receiver) > 1 else "",
         "QR Data": qr_data
     }
+    df_history.loc[len(df_history)] = row
+
+    if slip_key not in st.session_state.notified_slips:
+        send_telegram_photo(image, caption=f"🧾 สลิปใหม่: {reference.group() if reference else 'ไม่มีเลขอ้างอิง'}")
+        st.session_state.notified_slips.add(slip_key)
 
     if show_ocr:
-        st.subheader(f"สลิปที่: {reference.group() if reference else 'N/A'}")
+        st.subheader(f"OCR: {reference.group() if reference else 'N/A'}")
         st.code(text)
 
-# แสดงผลรวมและตาราง
+# ===== สรุปยอดและ Export =====
 if not df_history.empty:
-    total = df_history["Amount (LAK)"].astype(str).str.replace(",", "").astype(float).sum()
-    st.success(f"รวมยอดทั้งหมด: {int(total):,} LAK")
+    try:
+        total = df_history["Amount (LAK)"].astype(str).str.replace(",", "").astype(float).sum()
+        st.success(f"รวมยอดทั้งหมด: {int(total):,} LAK")
+    except:
+        st.warning("ไม่สามารถรวมยอดได้ เพราะมีข้อมูลจำนวนเงินผิดพลาด")
+
     st.dataframe(df_history)
 
-    # ดาวน์โหลด Excel
     buffer = io.BytesIO()
     df_history.to_excel(buffer, index=False)
-    st.download_button("ดาวน์โหลดไฟล์ Excel", data=buffer.getvalue(), file_name="slip_summary_039.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+    st.download_button("ดาวน์โหลด Excel", data=buffer.getvalue(), file_name="slip_summary.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
