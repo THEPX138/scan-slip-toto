@@ -13,10 +13,11 @@ from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseUpload
 
 # ===== CONFIG =====
-TELEGRAM_BOT_TOKEN = "7194336087:AAGSbq63qi4vpXJqZ2rwS940PVSnFWNHNtc"
-TELEGRAM_CHAT_ID = "-4745577562"
-GDRIVE_FOLDER_ID = "1LdK4GBanj3EhFNfn0QcPeC7QUUGrSRNW"
-CREDENTIAL_JSON = "scanslipuploader-credentials.json"
+TELEGRAM_BOT_TOKEN = "7194336087:AAGSbq63qi4vpXJqZ2rwS940PVSnFWNHNtc"        # ใช้ส่งข้อความเข้า Telegram
+TELEGRAM_CHAT_ID = "-4745577562" # กลุ่ม Telegram
+GDRIVE_FOLDER_ID = "1LdK4GBanj3EhFNfN0QcPeC7QUUGrSRNW" # โฟลเดอร์ใน Google Drive
+CREDENTIAL_JSON = "scanslipuploader-credentials.json" # credentials ที่ดาวน์โหลดมา
+
 
 def send_telegram_message(message):
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
