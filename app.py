@@ -1,4 +1,4 @@
-# ระบบสแกนสลิปโอนเงิน (เวอร์ชั่น 0.3.6)
+# ระบบสแกนสลิปโอนเงิน (เวอร์ชั่น 0.3.6) จากสลิป BCEL One
 import streamlit as st
 import pandas as pd
 import pytesseract
@@ -31,20 +31,27 @@ def send_telegram_photo(image, caption=""):
     except Exception as e:
         st.error(f"ส่งภาพ Telegram ล้มเหลว: {e}")
 
-# ===== Session State =====
-if "notified_slips" not in st.session_state:
-    st.session_state.notified_slips = set()
+# ===== Persistent slip keys cache =====
+if "seen_slips" not in st.session_state:
+    st.session_state.seen_slips = set()
 
-# ===== UI =====
+# ===== Streamlit UI =====
 st.set_page_config(page_title="ระบบสแกนสลิปโอนเงิน", layout="wide")
 st.title("ระบบสแกนสลิปโอนเงิน (เวอร์ชั่น 0.3.6) จากสลิป BCEL One")
 
-uploaded_files = st.file_uploader("อัปโหลดสลิปภาพ (รองรับหลายไฟล์)", type=["jpg", "jpeg", "png"], accept_multiple_files=True)
+uploaded_files = st.file_uploader(
+    "อัปโหลดสลิปภาพ (รองรับหลายไฟล์)",
+    type=["jpg", "jpeg", "png"],
+    accept_multiple_files=True,
+    label_visibility="collapsed"
+)
+
 show_ocr = st.checkbox("แสดงข้อความ OCR ทั้งหมด")
 
 columns = ["Date", "Time", "Amount (LAK)", "Reference", "Sender", "Receiver", "QR Data"]
 df_history = pd.DataFrame(columns=columns)
-processed_hashes = set()
+current_run_slips = set()
+
 
 def extract_amount_region(image):
     img_np = np.array(image)
@@ -57,8 +64,9 @@ def extract_amount_region(image):
     _, thresh = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
     return Image.fromarray(thresh)
 
+
 def read_qr_code(img_np):
-    return ""  # ยังไม่รองรับ pyzbar บน Streamlit Cloud
+    return ""  # pyzbar ใช้ไม่ได้บน Streamlit Cloud
 
 for file in uploaded_files:
     image = Image.open(file)
@@ -79,14 +87,12 @@ for file in uploaded_files:
 
     slip_key = f"{date.group() if date else ''}-{time.group() if time else ''}-{amount}-{reference.group() if reference else ''}"
 
-    if slip_key in processed_hashes:
+    if slip_key in st.session_state.seen_slips:
         st.warning(f"สลิปซ้ำ: {reference.group() if reference else 'N/A'}")
-        if slip_key not in st.session_state.notified_slips:
-            send_telegram_message(f"🚨 พบสลิปซ้ำ: เลขอ้างอิง {reference.group() if reference else 'N/A'}")
-            st.session_state.notified_slips.add(slip_key)
         continue
 
-    processed_hashes.add(slip_key)
+    current_run_slips.add(slip_key)
+    st.session_state.seen_slips.add(slip_key)
 
     row = {
         "Date": date.group() if date else "",
@@ -99,24 +105,27 @@ for file in uploaded_files:
     }
     df_history.loc[len(df_history)] = row
 
-    if slip_key not in st.session_state.notified_slips:
-        send_telegram_photo(image, caption=f"🧾 สลิปใหม่: {reference.group() if reference else 'ไม่มีเลขอ้างอิง'}")
-        st.session_state.notified_slips.add(slip_key)
+    send_telegram_photo(image, caption=f"\U0001F9FE สลิปใหม่: {reference.group() if reference else 'ไม่มีเลขอ้างอิง'}")
 
     if show_ocr:
         st.subheader(f"OCR: {reference.group() if reference else 'N/A'}")
         st.code(text)
 
-# ===== สรุปยอดและ Export =====
+# ===== สรุปยอดและดาวน์โหลด =====
 if not df_history.empty:
     try:
         total = df_history["Amount (LAK)"].astype(str).str.replace(",", "").astype(float).sum()
         st.success(f"รวมยอดทั้งหมด: {int(total):,} LAK")
     except:
-        st.warning("ไม่สามารถรวมยอดได้ เพราะมีข้อมูลจำนวนเงินผิดพลาด")
+        st.warning("ไม่สามารถรวมยอดได้ เนื่องจากข้อมูลจำนวนเงินไม่ถูกต้องทั้งหมด")
 
     st.dataframe(df_history)
 
     buffer = io.BytesIO()
     df_history.to_excel(buffer, index=False)
-    st.download_button("ดาวน์โหลด Excel", data=buffer.getvalue(), file_name="slip_summary.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+    st.download_button(
+        "ดาวน์โหลดไฟล์ Excel",
+        data=buffer.getvalue(),
+        file_name="slip_summary.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
