@@ -1,5 +1,8 @@
 streamlit
-pandas
 pytesseract
+pillow
+pandas
+numpy
+requests
 openpyxl
-Pillow
+opencv-python-headless
