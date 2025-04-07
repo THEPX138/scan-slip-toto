@@ -17,8 +17,7 @@ from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseUpload
 
 # ===== CONFIG =====
-Folder ID คือ:  1LdK4GBanj3EhFNfn0QcPeC7QUUGrSRNW
-print("Folder ID คือ: 1LdK4GBanj3EhFNfn0QcPeC7QUUGrSRNW")
+print("📂 Folder ID คือ: 1LdK4GBanj3EhFNfn0QcPeC7QUUGrSRNW")
 GDRIVE_FOLDER_ID = "1ldK4GBanj3EhFhFNfN0QcPeC7QUUGrSRNW"
 
 # โหลด service account credentials จากไฟล์ JSON
