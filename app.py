@@ -7,22 +7,18 @@ import io
 import re
 import cv2
 import requests
-import os
-from google.oauth2 import service_account
+import json
+from google.oauth2.service_account import Credentials
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseUpload
 
 # ===== CONFIG =====
-TELEGRAM_BOT_TOKEN = "7194336087:AAGSbq63qi4vpXJqZ2rwS940PVSnFWNHNtc"        # ใช้ส่งข้อความเข้า Telegram
-TELEGRAM_CHAT_ID = "-4745577562" # กลุ่ม Telegram
-GDRIVE_FOLDER_ID = "1LdK4GBanj3EhFNfN0QcPeC7QUUGrSRNW" # โฟลเดอร์ใน Google Drive
-import json
-from google.oauth2.service_account import Credentials
+TELEGRAM_BOT_TOKEN = "7194336087:AAGSbq63qi4vpXJqZ2rwS940PVSnFWNHNtc"
+TELEGRAM_CHAT_ID = "-4745577562"
+GDRIVE_FOLDER_ID = "1LdK4GBanj3EhFNfN0QcPeC7QUUGrSRNW"
 
 credentials_info = json.loads(st.secrets["gcp_service_account"])
 credentials = Credentials.from_service_account_info(credentials_info, scopes=["https://www.googleapis.com/auth/drive"])
-
-
 
 def send_telegram_message(message):
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
@@ -42,12 +38,7 @@ def send_telegram_photo(image, caption=""):
     except Exception as e:
         st.error(f"ส่งภาพ Telegram ล้มเหลว: {e}")
 
-def upload_to_drive(image_bytes, filename, credentials_json_path, folder_id):
-    scopes = ['https://www.googleapis.com/auth/drive']
-    credentials = service_account.Credentials.from_service_account_file(
-        credentials_json_path,
-        scopes=scopes
-    )
+def upload_to_drive(image_bytes, filename, credentials, folder_id):
     service = build('drive', 'v3', credentials=credentials)
     file_metadata = {'name': filename, 'parents': [folder_id]}
     media = MediaIoBaseUpload(io.BytesIO(image_bytes), mimetype='image/jpeg')
@@ -59,7 +50,7 @@ if "seen_slips" not in st.session_state:
     st.session_state.seen_slips = set()
 
 st.set_page_config(page_title="ระบบสแกนสลิปโอนเงิน", layout="wide")
-st.title("ระบบสแกนสลิปโอนเงิน (เวอร์ชั่น 0.3.8) จากสลิป BCEL One")
+st.title("ระบบสแกนสลิปโอนเงิน (เวอร์ชั่น 0.3.9) จากสลิป BCEL One")
 
 uploaded_files = st.file_uploader("อัปโหลดสลิปภาพ", type=["jpg", "jpeg", "png"], accept_multiple_files=True)
 show_ocr = st.checkbox("แสดงข้อความ OCR ทั้งหมด")
@@ -115,17 +106,15 @@ for file in uploaded_files:
 
     send_telegram_photo(image, caption=f"🧾 สลิปใหม่: {reference.group() if reference else 'ไม่มีเลขอ้างอิง'}")
 
-    # ส่งเข้า Google Drive
     buffered = io.BytesIO()
     image.save(buffered, format="JPEG")
     buffered.seek(0)
-    upload_to_drive(buffered.getvalue(), file.name, CREDENTIAL_JSON, GDRIVE_FOLDER_ID)
+    upload_to_drive(buffered.getvalue(), file.name, credentials, GDRIVE_FOLDER_ID)
 
     if show_ocr:
         st.subheader(f"OCR: {reference.group() if reference else 'N/A'}")
         st.code(text)
 
-# ===== สรุปยอดและดาวน์โหลด =====
 if not df_history.empty:
     try:
         total = df_history["Amount (LAK)"].astype(str).str.replace(",", "").astype(float).sum()
