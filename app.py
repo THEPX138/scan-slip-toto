@@ -7,9 +7,7 @@ import io
 import re
 import cv2
 import requests
-import os
 import json
-from google.oauth2 import service_account
 from google.oauth2.service_account import Credentials
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseUpload
@@ -19,11 +17,12 @@ TELEGRAM_BOT_TOKEN = "7194336087:AAGSbq63qi4vpXJqZ2rwS940PVSnFWNHNtc"
 TELEGRAM_CHAT_ID = "-4745577562"
 GDRIVE_FOLDER_ID = "1LdK4GBanj3EhFNfN0QcPeC7QUUGrSRNW"
 
-# โหลด credentials จาก secrets
-credentials_info = json.loads(st.secrets["gcp_service_account"])
-credentials = Credentials.from_service_account_info(credentials_info, scopes=["https://www.googleapis.com/auth/drive"])
+# โหลด service account credentials จากไฟล์ JSON
+with open("scanslipuploader-19bcb43788e7.json") as source:
+    credentials_info = json.load(source)
+    credentials = Credentials.from_service_account_info(credentials_info, scopes=["https://www.googleapis.com/auth/drive"])
 
-# ===== Function =====
+# ===== Function Zone =====
 def send_telegram_message(message):
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
     try:
@@ -42,8 +41,8 @@ def send_telegram_photo(image, caption=""):
     except Exception as e:
         st.error(f"ส่งภาพ Telegram ล้มเหลว: {e}")
 
-def upload_to_drive(image_bytes, filename, creds, folder_id):
-    service = build('drive', 'v3', credentials=creds)
+def upload_to_drive(image_bytes, filename, folder_id):
+    service = build('drive', 'v3', credentials=credentials)
     file_metadata = {'name': filename, 'parents': [folder_id]}
     media = MediaIoBaseUpload(io.BytesIO(image_bytes), mimetype='image/jpeg')
     file = service.files().create(body=file_metadata, media_body=media, fields='id').execute()
@@ -63,7 +62,7 @@ def extract_amount_region(image):
 def read_qr_code(img_np):
     return ""
 
-# ===== UI & Logic =====
+# ===== Streamlit UI =====
 if "seen_slips" not in st.session_state:
     st.session_state.seen_slips = set()
 
@@ -108,18 +107,18 @@ for file in uploaded_files:
     }
     df_history.loc[len(df_history)] = row
 
-    send_telegram_photo(image, caption=f"🧾 สลิปใหม่: {reference.group() if reference else 'ไม่มีเลขอ้างอิง'}")
+    send_telegram_photo(image, caption=f"\U0001F9FE สลิปใหม่: {reference.group() if reference else 'ไม่มีเลขอ้างอิง'}")
 
     buffered = io.BytesIO()
     image.save(buffered, format="JPEG")
     buffered.seek(0)
-    upload_to_drive(buffered.getvalue(), file.name, credentials, GDRIVE_FOLDER_ID)
+    upload_to_drive(buffered.getvalue(), file.name, GDRIVE_FOLDER_ID)
 
     if show_ocr:
         st.subheader(f"OCR: {reference.group() if reference else 'N/A'}")
         st.code(text)
 
-# ===== Export Section =====
+# ===== สรุปยอดและดาวน์โหลด =====
 if not df_history.empty:
     try:
         total = df_history["Amount (LAK)"].astype(str).str.replace(",", "").astype(float).sum()
@@ -131,4 +130,4 @@ if not df_history.empty:
 
     buffer = io.BytesIO()
     df_history.to_excel(buffer, index=False)
-    st.download_button("ดาวน์โหลดไฟล์ Excel", data=buffer.getvalue(), file_name="slip_summary.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+    st.download_button("\U0001F4BE ดาวน์โหลดไฟล์ Excel", data=buffer.getvalue(), file_name="slip_summary.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
