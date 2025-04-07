@@ -1,7 +1,7 @@
 streamlit
 pytesseract
 Pillow
-opencv-python
+opencv-python-headless
 pandas
 numpy
 requests
