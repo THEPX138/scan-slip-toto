@@ -5,6 +5,8 @@ opencv-python
 pandas
 numpy
 requests
+
+# สำหรับเชื่อม Google Drive
 google-api-python-client
 google-auth
 google-auth-oauthlib
