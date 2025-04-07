@@ -16,7 +16,12 @@ from googleapiclient.http import MediaIoBaseUpload
 TELEGRAM_BOT_TOKEN = "7194336087:AAGSbq63qi4vpXJqZ2rwS940PVSnFWNHNtc"        # ใช้ส่งข้อความเข้า Telegram
 TELEGRAM_CHAT_ID = "-4745577562" # กลุ่ม Telegram
 GDRIVE_FOLDER_ID = "1LdK4GBanj3EhFNfN0QcPeC7QUUGrSRNW" # โฟลเดอร์ใน Google Drive
-CREDENTIAL_JSON = "scanslipuploader-credentials.json" # credentials ที่ดาวน์โหลดมา
+import json
+from google.oauth2.service_account import Credentials
+
+credentials_info = json.loads(st.secrets["gcp_service_account"])
+credentials = Credentials.from_service_account_info(credentials_info, scopes=["https://www.googleapis.com/auth/drive"])
+
 
 
 def send_telegram_message(message):
