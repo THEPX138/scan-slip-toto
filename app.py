@@ -18,7 +18,10 @@ from googleapiclient.http import MediaIoBaseUpload
 
 # ===== CONFIG =====
 print("📂 Folder ID คือ: 1LdK4GBanj3EhFNfn0QcPeC7QUUGrSRNW")
-GDRIVE_FOLDER_ID = "1ldK4GBanj3EhFhFNfN0QcPeC7QUUGrSRNW"
+GDRIVE_FOLDER_ID = "1LdK4GBanj3EhFNfn0QcPeC7QUUGrSRNW"
+
+TELEGRAM_BOT_TOKEN = "7194336087:AAGSbq63qi4vpXJqZ2rwS940PVSnFWNHNtc"
+TELEGRAM_CHAT_ID = "-4745577562"
 
 # โหลด service account credentials จากไฟล์ JSON
 with open("scanslipuploader-df6c15243236.json") as source:
@@ -27,6 +30,7 @@ with open("scanslipuploader-df6c15243236.json") as source:
 drive_service = build("drive", "v3", credentials=credentials)
 
 # ========== ฟังก์ชัน OCR และวิเคราะห์ภาพ ==========
+
 def extract_ocr_text(image):
     text = pytesseract.image_to_string(image, lang='eng+lao')
     return text
@@ -75,6 +79,7 @@ def notify_telegram(message, image_bytes=None):
         requests.post(photo_url, data=data, files=files)
 
 # ========== UI ==========
+
 st.set_page_config(page_title="ระบบสแกนสลิป", layout="wide")
 st.title("ระบบสแกนสลิปโอนเงิน (เวอร์ชั่น 0.3.9) จากสลิป BCEL One")
 uploaded_files = st.file_uploader("อัปโหลดสลิปภาพ", accept_multiple_files=True, type=["jpg", "jpeg", "png"])
